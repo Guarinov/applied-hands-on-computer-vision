@@ -1,4 +1,4 @@
-# Applied Hands-On Computer Vision
+# Applied Hands-On Computer Vision - HPI WiSe 2025
 
 Assessment assignments for the 'Applied Hands-On Computer Vision' research seminar at HPI in the Fall-Winter semester of 2025.
 
