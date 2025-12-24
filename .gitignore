@@ -6,9 +6,9 @@ __pycache__/
 .DS_Store
 .env
 
-data/
-Classification/
-mnist-curated-fiftyone/
-hf_hub_api.py 
-fix_structure.py
+Assignment-*/data/
+Assignment-*/Classification/
+Assignment-*/mnist-curated-fiftyone/
+Assignment-*/hf_hub_api.py 
+Assignment-*/fix_structure.py
 
