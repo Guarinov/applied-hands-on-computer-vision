@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "handsoncv"   # package name
+version = "0.1.0"   # initial version
+description = "A Python package for reproducing assessment results for Hasso Plattner's Hands-On-CV Research Seminar in the WiSe 2025-26."
+authors = [
+  { name="Vanessa Emanuela Guarino", email="vanessa.emanuela.guarino@uni-potsdam.de" }
+]
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy",
+  "torch >= 2.0.0",
+  "torchvision",
+  "fiftyone",
+  "scikit-learn",
+  "umap-learn",
+  "anywidget",
+  "seaborn",
+  "pandas",
+  "opencv-python",
+  "tqdm",
+  "Pillow",
+  "ipywidgets",
+  "ipykernel",
+  "scipy",
+  "matplotlib",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Guarinov/applied-hands-on-computer-vision/"
+"Repository" = "https://github.com/Guarinov/applied-hands-on-computer-vision/"
+
+[project.optional-dependencies]
+dev = [
+  "pytest >=7.2,<8.0", 
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]  

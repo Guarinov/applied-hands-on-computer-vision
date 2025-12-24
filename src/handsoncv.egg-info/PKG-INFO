@@ -1,0 +1,41 @@
+Metadata-Version: 2.4
+Name: handsoncv
+Version: 0.1.0
+Summary: A Python package for reproducing assessment results for Hasso Plattner's Hands-On-CV Research Seminar in the WiSe 2025-26.
+Author-email: Vanessa Emanuela Guarino <vanessa.emanuela.guarino@uni-potsdam.de>
+Project-URL: Homepage, https://github.com/Guarinov/applied-hands-on-computer-vision/
+Project-URL: Repository, https://github.com/Guarinov/applied-hands-on-computer-vision/
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torchvision
+Requires-Dist: fiftyone
+Requires-Dist: scikit-learn
+Requires-Dist: umap-learn
+Requires-Dist: anywidget
+Requires-Dist: seaborn
+Requires-Dist: pandas
+Requires-Dist: opencv-python
+Requires-Dist: tqdm
+Requires-Dist: Pillow
+Requires-Dist: ipywidgets
+Requires-Dist: ipykernel
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Provides-Extra: dev
+Requires-Dist: pytest<8.0,>=7.2; extra == "dev"
+
+# Applied Hands-On Computer Vision - HPI WiSe 2025
+
+Assessment assignments for the 'Applied Hands-On Computer Vision' research seminar at HPI in the Fall-Winter semester of 2025.
+
+This repository contains the following assignments:
+
+1. **MNIST Dataset Curation Lab**: Uses FiftyOne to audit label noise and implements a robust "I Don't Know" (IDK) classification strategy using LeNet-5 and Dynamic Focal Loss.
+2. tbd
+3. tbd
+
+## Installation
+```bash
+pip install -r requirements.txt
