@@ -1,0 +1,72 @@
+_wandb:
+    value:
+        cli_version: 0.23.1
+        e:
+            z3qny5r993uaqcjkcxwteen5ouj71ce1:
+                codePath: /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks/02_fusion_exploration.ipynb
+                codePathLocal: 02_fusion_exploration.ipynb
+                cpu_count: 32
+                cpu_count_logical: 64
+                cudaVersion: "12.4"
+                disk:
+                    /:
+                        total: "502392610816"
+                        used: "455736352768"
+                email: guarino.vanessa.emanuela@gmail.com
+                executable: /home/vanessa/.local/micromamba/envs/handsoncv/bin/python
+                git:
+                    commit: 2cf099fa57a6c4e3391923b665847f9b79e1b1e5
+                    remote: https://github.com/Guarinov/applied-hands-on-computer-vision.git
+                gpu: NVIDIA GeForce RTX 3090
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10496
+                      memoryTotal: "25769803776"
+                      name: NVIDIA GeForce RTX 3090
+                      uuid: GPU-d86b77aa-c471-307c-3723-7a4f9972535e
+                    - architecture: Pascal
+                      cudaCores: 256
+                      memoryTotal: "2147483648"
+                      name: Quadro P400
+                      uuid: GPU-19e44665-b9ec-f580-7c83-a613b4bf04c9
+                host: vanessa-Precision-7920-Tower
+                memory:
+                    total: "201374023680"
+                os: Linux-6.8.0-87-generic-x86_64-with-glibc2.35
+                program: /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks/02_fusion_exploration.ipynb
+                python: CPython 3.11.14
+                root: /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks
+                startedAt: "2025-12-25T21:16:43.418980Z"
+                writerId: z3qny5r993uaqcjkcxwteen5ouj71ce1
+        m: []
+        python_version: 3.11.14
+        t:
+            "1":
+                - 1
+                - 41
+                - 105
+            "2":
+                - 1
+                - 41
+                - 105
+            "3":
+                - 2
+                - 13
+                - 16
+            "4": 3.11.14
+            "5": 0.23.1
+            "8":
+                - 1
+            "12": 0.23.1
+            "13": linux-x86_64
+architecture:
+    value: Int Fusion Add
+epochs:
+    value: 20
+learning_rate:
+    value: 0.0001
+seed:
+    value: 42
+subset_size:
+    value: 1999

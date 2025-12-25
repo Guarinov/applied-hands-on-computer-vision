@@ -15,6 +15,7 @@ ipykernel
 scipy
 matplotlib
 wandb
+nbformat
 
 [dev]
 pytest<8.0,>=7.2

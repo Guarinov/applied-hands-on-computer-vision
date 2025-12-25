@@ -16,12 +16,18 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
     # Metrics for the comparison table
     params = count_parameters(model)
     start_time = time.time()
+    epoch_times = []
+    
+    # Reset GPU stats before training starts for new architecture
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device)
     
     for epoch in range(epochs):
         epoch_start = time.time()
+        
+        # --- Training Phase ---
         model.train()
         train_loss = 0
-        
         for rgb, lidar, labels in train_loader:
             rgb, lidar, labels = rgb.to(device), lidar.to(device), labels.to(device)
             
@@ -32,7 +38,9 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
             optimizer.step()
             train_loss += loss.item()
             
-        # Validation
+        avg_train_loss = train_loss / len(train_loader)
+            
+        # --- Validation Phase ---
         model.eval()
         val_loss = 0
         correct = 0
@@ -46,17 +54,31 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
 
         avg_val_loss = val_loss / len(val_loader)
         acc = 100 * correct / len(val_loader.dataset)
-        epoch_time = time.time() - epoch_start
-        gpu_mem = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
-
+        
+        duration = time.time() - epoch_start
+        epoch_times.append(duration)
+        peak_mem_mb = torch.cuda.max_memory_allocated(device) / (1024 ** 2) # Get peak memory seen since the start of this model's training
+        
         wandb.log({
+            "epoch": epoch,
+            "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
             "accuracy": acc,
-            "epoch_time": epoch_time,
-            "gpu_mem_mb": gpu_mem
+            "epoch_time_sec": duration,
+            "peak_gpu_mem_mb": peak_mem_mb
         })
         
-        print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}, Acc: {acc:.2f}%")
-
+        print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}, Acc: {acc:.2f}% | Mem: {peak_mem_mb:.1f}MB")
+        
     total_time = time.time() - start_time
-    return {"val_loss": avg_val_loss, "params": params, "total_time": total_time, "gpu_mem": gpu_mem}
+    avg_epoch_time = sum(epoch_times) / len(epoch_times)
+    final_peak_gpu = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+
+    return {
+        "val_loss": avg_val_loss,
+        "accuracy": acc,
+        "params": params,
+        "total_time_sec": total_time,
+        "sec_per_epoch": avg_epoch_time,
+        "gpu_mem_mb": final_peak_gpu
+    }

@@ -30,6 +30,7 @@ dependencies = [
   "scipy",
   "matplotlib",
   "wandb",
+  "nbformat",
 ]
 
 [project.urls]

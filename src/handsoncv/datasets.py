@@ -1,6 +1,10 @@
+import os 
+import torch
 import numpy as np
-from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
+
+from PIL import Image
+from torch.utils.data import Dataset
 from pathlib import Path
 
 """
@@ -68,39 +72,78 @@ def get_torch_xyza(lidar_depth, azimuth, zenith):
     return torch.stack((x, y, z, a))
 
 class CILPFusionDataset(Dataset):
-    def __init__(self, samples, transform=None):
-        """samples: List of dicts containing {'rgb_path', 'lidar_path', 'label'}"""
-        self.samples = samples
+    def __init__(self, root_dir, sample_ids=None, transform=None):
+        """
+        Args:
+            root_dir (str): Path to the 'assessment' folder.
+            sample_ids (list, optional): Specific list of IDs (e.g., ['0001', '1421']). 
+                                         If None, all IDs in root_dir are discovered.
+            transform (callable, optional): Optional transform to be applied on RGB.
+        """
+        self.root_dir = Path(os.path.expanduser(root_dir))
+        self.samples = sample_ids
         self.transform = transform
         self.label_map = {"cube": 0, "sphere": 1}
+        
+        # Internal lookup tables
+        self.id_to_class = {}
         self.angles = {}
+        discovered_ids = []
+        
         # We assume root_dir has 'cubes' and 'spheres' folders containing azymuth and zenith .npy files. Otherwise, adjust accordingly.
-        for folder, label in [("cubes", "cube"), ("spheres", "sphere")]:
-            path = Path(root_dir) / folder
-            self.angles[label] = {
-                "azimuth": torch.from_numpy(np.load(path / "azimuth.npy")).to(torch.float32),
-                "zenith": torch.from_numpy(np.load(path / "zenith.npy")).to(torch.float32)
+        for folder_name in ["cubes", "spheres"]:
+            class_path = self.root_dir / folder_name
+            if not class_path.exists():
+                continue
+            class_label = folder_name.rstrip('s') # 'cube' or 'sphere'
+            # Load shared angles for this class
+            self.angles[class_label] = {
+                "azimuth": torch.from_numpy(np.load(class_path / "azimuth.npy")).to(torch.float32),
+                "zenith": torch.from_numpy(np.load(class_path / "zenith.npy")).to(torch.float32)
             }
-
+            # Scan for all RGB files to identify sample IDs
+            rgb_dir = class_path / "rgb"
+            if rgb_dir.exists():
+                for f in rgb_dir.glob("*.png"):
+                    stem = f.stem
+                    self.id_to_class[stem] = class_label
+                    discovered_ids.append(stem)
+                    
+        if sample_ids is not None:
+            # Filter discovered data by provided list
+            self.sample_ids = [s for s in sample_ids if s in self.id_to_class]
+            if len(self.sample_ids) != len(sample_ids):
+                missing = set(sample_ids) - set(self.id_to_class.keys())
+                print(f"Warning: {len(missing)} provided IDs were not found in {root_dir}")
+        else:
+            # Use everything 
+            self.sample_ids = sorted(discovered_ids)
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.sample_ids)
 
     def __getitem__(self, idx):
-        item = self.samples[idx]
+        sample_id = self.sample_ids[idx]
         
-        # Load RGB
-        rgb_img = Image.open(item['rgb_path']).convert("RGBA") # Ensure 4 channels
+        # Retrieve the class for this ID
+        class_label = self.id_to_class[sample_id]
+        folder_name = class_label + "s"
+        
+        # Paths
+        rgb_path = self.root_dir / folder_name / "rgb" / f"{sample_id}.png"
+        lidar_path = self.root_dir / folder_name / "lidar" / f"{sample_id}.npy" 
+        
+        # Load RGB images
+        rgb_img = Image.open(rgb_path).convert("RGBA")
         if self.transform:
             rgb_img = self.transform(rgb_img)
         
-        # Load LiDAR
-        lidar_npy = np.load(item['lidar_path'])
+        # Load LiDAR images 
+        lidar_npy = np.load(lidar_path)
         lidar_depth = torch.from_numpy(lidar_npy).to(torch.float32)
-        azi = self.angles[label_str]["azimuth"]
-        zen = self.angles[label_str]["zenith"]
+        azi = self.angles[class_label]["azimuth"]
+        zen = self.angles[class_label]["zenith"]
         lidar_xyza = get_torch_xyza(lidar_depth, azi, zen)
         
-        label = torch.tensor(self.label_map[item['label']], dtype=torch.long)
-        
+        label = torch.tensor(self.label_map[class_label], dtype=torch.long)
         return rgb_img, lidar_xyza, label

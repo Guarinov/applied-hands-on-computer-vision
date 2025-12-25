@@ -1,0 +1,8 @@
+{"time":"2025-12-25T21:51:44.143768108+01:00","level":"INFO","msg":"stream: starting","core version":"0.23.1"}
+{"time":"2025-12-25T21:51:44.438112216+01:00","level":"INFO","msg":"stream: created new stream","id":"9l3stye8"}
+{"time":"2025-12-25T21:51:44.438240702+01:00","level":"INFO","msg":"handler: started","stream_id":"9l3stye8"}
+{"time":"2025-12-25T21:51:44.43848191+01:00","level":"INFO","msg":"stream: started","id":"9l3stye8"}
+{"time":"2025-12-25T21:51:44.438514639+01:00","level":"INFO","msg":"writer: started","stream_id":"9l3stye8"}
+{"time":"2025-12-25T21:51:44.438542719+01:00","level":"INFO","msg":"sender: started","stream_id":"9l3stye8"}
+{"time":"2025-12-25T21:54:30.52599379+01:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/files/kainmueller-lab/handsoncv-fusion/9l3stye8/file_stream"}
+{"time":"2025-12-25T21:54:30.526120321+01:00","level":"ERROR+4","msg":"filestream: fatal error: filestream: failed to upload: 404 Not Found path=files/kainmueller-lab/handsoncv-fusion/9l3stye8/file_stream: {\"error\":\"project kainmueller-lab/handsoncv-fusion not found while streaming file\"}"}

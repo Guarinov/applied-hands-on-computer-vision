@@ -1,0 +1,12 @@
+{"time":"2025-12-25T23:11:07.669731593+01:00","level":"INFO","msg":"stream: starting","core version":"0.23.1"}
+{"time":"2025-12-25T23:11:07.946916529+01:00","level":"INFO","msg":"stream: created new stream","id":"wfnvdina"}
+{"time":"2025-12-25T23:11:07.947019778+01:00","level":"INFO","msg":"handler: started","stream_id":"wfnvdina"}
+{"time":"2025-12-25T23:11:07.947120108+01:00","level":"INFO","msg":"stream: started","id":"wfnvdina"}
+{"time":"2025-12-25T23:11:07.947132187+01:00","level":"INFO","msg":"writer: started","stream_id":"wfnvdina"}
+{"time":"2025-12-25T23:11:07.947145242+01:00","level":"INFO","msg":"sender: started","stream_id":"wfnvdina"}
+{"time":"2025-12-25T23:11:48.170223211+01:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-12-25T23:11:48.45283006+01:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-12-25T23:11:48.462103155+01:00","level":"INFO","msg":"stream: closing","id":"wfnvdina"}
+{"time":"2025-12-25T23:11:48.462129952+01:00","level":"INFO","msg":"handler: closed","stream_id":"wfnvdina"}
+{"time":"2025-12-25T23:11:48.462227026+01:00","level":"INFO","msg":"sender: closed","stream_id":"wfnvdina"}
+{"time":"2025-12-25T23:11:48.462241865+01:00","level":"INFO","msg":"stream: closed","id":"wfnvdina"}

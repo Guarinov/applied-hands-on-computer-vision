@@ -1,0 +1,26 @@
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_setup.py:_flush():80] Current SDK version is 0.23.1
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_setup.py:_flush():80] Configure stats pid to 208989
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_setup.py:_flush():80] Loading settings from /home/vanessa/.config/wandb/settings
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_setup.py:_flush():80] Loading settings from /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks/wandb/settings
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_setup.py:_flush():80] Loading settings from environment variables
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:setup_run_log_directory():714] Logging user logs to /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks/wandb/run-20251225_231500-ut2mliy3/logs/debug.log
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:setup_run_log_directory():715] Logging internal logs to /home/vanessa/Documents/repos/Applied-Hands-On-Computer-Vision/Assignment-2/notebooks/wandb/run-20251225_231500-ut2mliy3/logs/debug-internal.log
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:monkeypatch_ipython():633] configuring jupyter hooks <wandb.sdk.wandb_init._WandbInit object at 0x7bbda49d4fd0>
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:init():841] calling init triggers
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:init():846] wandb.init called with sweep_config: {}
+config: {'architecture': 'Late Fusion', 'epochs': 20, 'subset_size': 7466, 'learning_rate': 0.0001, 'seed': 42, '_wandb': {}}
+2025-12-25 23:15:00,088 INFO    MainThread:208989 [wandb_init.py:init():889] starting backend
+2025-12-25 23:15:00,352 INFO    MainThread:208989 [wandb_init.py:init():892] sending inform_init request
+2025-12-25 23:15:00,358 INFO    MainThread:208989 [wandb_init.py:init():900] backend started and connected
+2025-12-25 23:15:00,375 INFO    MainThread:208989 [wandb_run.py:_label_probe_notebook():1334] probe notebook
+2025-12-25 23:15:00,375 INFO    MainThread:208989 [wandb_init.py:init():970] updated telemetry
+2025-12-25 23:15:00,415 INFO    MainThread:208989 [wandb_init.py:init():994] communicating run to backend with 90.0 second timeout
+2025-12-25 23:15:00,972 INFO    MainThread:208989 [wandb_init.py:init():1041] starting run threads in backend
+2025-12-25 23:15:01,105 INFO    MainThread:208989 [wandb_run.py:_console_start():2521] atexit reg
+2025-12-25 23:15:01,105 INFO    MainThread:208989 [wandb_run.py:_redirect():2369] redirect: wrap_raw
+2025-12-25 23:15:01,106 INFO    MainThread:208989 [wandb_run.py:_redirect():2438] Wrapping output streams.
+2025-12-25 23:15:01,106 INFO    MainThread:208989 [wandb_run.py:_redirect():2461] Redirects installed.
+2025-12-25 23:15:01,109 INFO    MainThread:208989 [wandb_init.py:init():1081] run started, returning control to user process
+2025-12-25 23:15:39,181 INFO    wandb-AsyncioManager-main:208989 [service_client.py:_forward_responses():80] Reached EOF.
+2025-12-25 23:15:39,181 INFO    wandb-AsyncioManager-main:208989 [mailbox.py:close():137] Closing mailbox, abandoning 1 handles.
+2025-12-25 23:15:39,726 INFO    MainThread:208989 [wandb_init.py:_post_run_cell_hook():603] [no run ID] resuming backend

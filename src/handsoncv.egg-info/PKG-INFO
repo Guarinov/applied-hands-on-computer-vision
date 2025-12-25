@@ -24,6 +24,7 @@ Requires-Dist: ipykernel
 Requires-Dist: scipy
 Requires-Dist: matplotlib
 Requires-Dist: wandb
+Requires-Dist: nbformat
 Provides-Extra: dev
 Requires-Dist: pytest<8.0,>=7.2; extra == "dev"
 
