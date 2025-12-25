@@ -1,5 +1,9 @@
 README.md
 pyproject.toml
+src/handsoncv/datasets.py
+src/handsoncv/models.py
+src/handsoncv/training.py
+src/handsoncv/visualization.py
 src/handsoncv.egg-info/PKG-INFO
 src/handsoncv.egg-info/SOURCES.txt
 src/handsoncv.egg-info/dependency_links.txt

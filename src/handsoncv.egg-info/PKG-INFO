@@ -28,7 +28,7 @@ Requires-Dist: pytest<8.0,>=7.2; extra == "dev"
 
 # Applied Hands-On Computer Vision - HPI WiSe 2025
 
-Assessment assignments for the 'Applied Hands-On Computer Vision' research seminar at HPI in the Fall-Winter semester of 2025.
+This repository contains the assessment results and shared codebase for the Hands-On-CV Research Seminar at the Hasso Plattner Institute (WiSe 2025-26).
 
 This repository contains the following assignments:
 
@@ -39,3 +39,32 @@ This repository contains the following assignments:
 ## Installation
 ```bash
 pip install -r requirements.txt
+```
+
+## 📂 Repository Structure
+The project follows the "src-layout" to ensure shared logic is easily accessible across different assignments while keeping the root directory clean.
+
+```text
+Applied-Hands-On-Computer-Vision/
+├── pyproject.toml           # Project metadata and dependencies
+├── LICENSE                  # Project license
+├── README.md                # Setup and usage instructions
+├├── src/
+│   └── handsoncv/                # Main package
+│       ├── __init__.py
+│       ├── shared/               # Code used in Assignments 2 & 3
+│       │   ├── __init__.py
+│       │   └── ...       
+│       └── assignment_02/        # Logic specific to Assignment 2
+│           ├── __init__.py
+│           ├── datasets.py        
+│           ├── models.py
+│           ├── training.py
+│           └── visualization.py       
+├── assignment_01/           # Folder for the first assessment
+│   ├──
+│   └── image-dataset-curation-with-specialist-models-LeNet5.ipynb     
+└── assignment_02/           # Folder for the second assessment
+│   ├── 01_dataset_exploration.ipynb
+│   └── ...
+```

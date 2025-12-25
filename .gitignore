@@ -1,11 +1,23 @@
-__pycache__/
+# Jupyter/VS Code
 .vscode/
 .ipynb_checkpoints/
+*.ipynb_checkpoints/
 
+# Python cache, OS files, env files
+__pycache__/
 *.pyc
 .DS_Store
 .env
 
+# Build / distribution
+build/
+dist/
+
+# Python packaging artifacts
+*.egg-info/
+*.egg-info/**
+
+# Data folders and some data modules to ignore
 Assignment-*/data/
 Assignment-*/Classification/
 Assignment-*/mnist-curated-fiftyone/
