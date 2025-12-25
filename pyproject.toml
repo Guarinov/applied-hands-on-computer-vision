@@ -29,6 +29,7 @@ dependencies = [
   "ipykernel",
   "scipy",
   "matplotlib",
+  "wandb",
 ]
 
 [project.urls]

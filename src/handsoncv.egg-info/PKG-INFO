@@ -23,6 +23,7 @@ Requires-Dist: ipywidgets
 Requires-Dist: ipykernel
 Requires-Dist: scipy
 Requires-Dist: matplotlib
+Requires-Dist: wandb
 Provides-Extra: dev
 Requires-Dist: pytest<8.0,>=7.2; extra == "dev"
 

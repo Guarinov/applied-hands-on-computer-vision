@@ -14,6 +14,7 @@ ipywidgets
 ipykernel
 scipy
 matplotlib
+wandb
 
 [dev]
 pytest<8.0,>=7.2
