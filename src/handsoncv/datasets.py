@@ -86,9 +86,9 @@ class CILPFusionDataset(Dataset):
         self.label_map = {"cube": 0, "sphere": 1}
         
         # Internal lookup tables
-        self.id_to_class = {}
         self.angles = {}
-        discovered_ids = []
+        self.id_to_metadata = {} # unique IDs as keys
+        discovered_unique_ids = []
         
         # We assume root_dir has 'cubes' and 'spheres' folders containing azymuth and zenith .npy files. Otherwise, adjust accordingly.
         for folder_name in ["cubes", "spheres"]:
@@ -105,33 +105,34 @@ class CILPFusionDataset(Dataset):
             rgb_dir = class_path / "rgb"
             if rgb_dir.exists():
                 for f in rgb_dir.glob("*.png"):
-                    stem = f.stem
-                    self.id_to_class[stem] = class_label
-                    discovered_ids.append(stem)
+                    # Create unique id: e.g., 'cube_0001'
+                    unique_id = f"{class_label}_{f.stem}"
+                    self.id_to_metadata[unique_id] = {
+                        "stem": f.stem,
+                        "class": class_label
+                    }
+                    discovered_unique_ids.append(unique_id)
                     
         if sample_ids is not None:
-            # Filter discovered data by provided list
-            self.sample_ids = [s for s in sample_ids if s in self.id_to_class]
-            if len(self.sample_ids) != len(sample_ids):
-                missing = set(sample_ids) - set(self.id_to_class.keys())
-                print(f"Warning: {len(missing)} provided IDs were not found in {root_dir}")
+            # Filter our discovered unique_ids against the provided list
+            self.sample_ids = [s for s in sample_ids if s in self.id_to_metadata]
+            if len(self.sample_ids) == 0:
+                print(f"Warning: IDs not found. Check .json file.")
         else:
-            # Use everything 
-            self.sample_ids = sorted(discovered_ids)
+            self.sample_ids = sorted(discovered_unique_ids)
+
 
     def __len__(self):
         return len(self.sample_ids)
 
     def __getitem__(self, idx):
         sample_id = self.sample_ids[idx]
-        
-        # Retrieve the class for this ID
-        class_label = self.id_to_class[sample_id]
+        class_label, stem = sample_id.split("_") #e.g. 'cube_1538'
         folder_name = class_label + "s"
         
         # Paths
-        rgb_path = self.root_dir / folder_name / "rgb" / f"{sample_id}.png"
-        lidar_path = self.root_dir / folder_name / "lidar" / f"{sample_id}.npy" 
+        rgb_path = self.root_dir / folder_name / "rgb" / f"{stem}.png"
+        lidar_path = self.root_dir / folder_name / "lidar" / f"{stem}.npy" 
         
         # Load RGB images
         rgb_img = Image.open(rgb_path).convert("RGBA")

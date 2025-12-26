@@ -17,10 +17,13 @@ dist/
 *.egg-info/
 *.egg-info/**
 
+# Wandb logs
+**/wandb/**
+
 # Data folders and some data modules to ignore
 Assignment-*/data/
 Assignment-*/Classification/
 Assignment-*/mnist-curated-fiftyone/
 Assignment-*/hf_hub_api.py 
 Assignment-*/fix_structure.py
-
+Assignment-*/notebooks/wandb/

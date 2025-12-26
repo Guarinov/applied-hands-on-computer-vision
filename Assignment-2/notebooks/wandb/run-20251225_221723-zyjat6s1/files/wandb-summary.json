@@ -1,1 +1,0 @@
-{"epoch_time_sec":1.8030149936676025,"_runtime":36,"_timestamp":1.7666974806065302e+09,"train_loss":0,"_wandb":{"runtime":36},"_step":19,"accuracy":100,"val_loss":0,"epoch":19,"peak_gpu_mem_mb":327.3857421875}

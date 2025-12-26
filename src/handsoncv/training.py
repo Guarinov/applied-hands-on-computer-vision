@@ -9,12 +9,14 @@ The following functions are based on the utils provided for the Nvidia course Bu
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, device, epochs=10):
+def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, device, epochs=10, scheduler=None):
     model.to(device)
     best_val_loss = float('inf')
     
-    # Metrics for the comparison table
+    # Metrics for the comparison table and static logs for wandb
     params = count_parameters(model)
+    wandb.config.update({"number_of_parameters": params})
+    
     start_time = time.time()
     epoch_times = []
     
@@ -25,7 +27,7 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
     for epoch in range(epochs):
         epoch_start = time.time()
         
-        # --- Training Phase ---
+        # Training Phase 
         model.train()
         train_loss = 0
         for rgb, lidar, labels in train_loader:
@@ -37,13 +39,23 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-            
+        
+        current_lr = optimizer.param_groups[0]['lr'] # Get current LR for logging
+        # Step the scheduler if it exists
+        if scheduler:
+            scheduler.step()
+        
         avg_train_loss = train_loss / len(train_loader)
             
-        # --- Validation Phase ---
+        # Validation Phase 
         model.eval()
         val_loss = 0
         correct = 0
+        samples_logged = 0
+        prediction_table = wandb.Table(columns=["Epoch", "Image", "Lidar_Mask", "True_Label", "Predicted_Label"])
+        
+        label_names = {0: "cube", 1: "sphere"}
+                                       
         with torch.no_grad():
             for rgb, lidar, labels in val_loader:
                 rgb, lidar, labels = rgb.to(device), lidar.to(device), labels.to(device)
@@ -51,6 +63,23 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
                 val_loss += criterion(outputs, labels).item()
                 _, predicted = torch.max(outputs.data, 1)
                 correct += (predicted == labels).sum().item()
+                
+                # Log sample predictions to W&B (up to 5 samples per epoch, Task 1.3 requirement) 
+                if samples_logged < 5:
+                    for i in range(min(len(labels), 5 - samples_logged)):
+                        # Convert RGBA to RGB for W&B display
+                        img_vis = rgb[i][:3].cpu().permute(1, 2, 0).numpy()
+                        # Use the 4th channel (Mask) of Lidar for visualization
+                        lidar_vis = lidar[i][3].cpu().numpy()
+                        
+                        prediction_table.add_data(
+                            epoch,
+                            wandb.Image(img_vis),
+                            wandb.Image(lidar_vis),
+                            label_names[labels[i].item()],
+                            label_names[predicted[i].item()]
+                        )
+                        samples_logged += 1
 
         avg_val_loss = val_loss / len(val_loader)
         acc = 100 * correct / len(val_loader.dataset)
@@ -64,8 +93,10 @@ def train_fusion_model(model, train_loader, val_loader, optimizer, criterion, de
             "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
             "accuracy": acc,
+            "learning_rate": current_lr,
             "epoch_time_sec": duration,
-            "peak_gpu_mem_mb": peak_mem_mb
+            "peak_gpu_mem_mb": peak_mem_mb,
+            "sample_predictions": prediction_table
         })
         
         print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}, Acc: {acc:.2f}% | Mem: {peak_mem_mb:.1f}MB")

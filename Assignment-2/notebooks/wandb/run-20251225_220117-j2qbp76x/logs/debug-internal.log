@@ -1,8 +1,0 @@
-{"time":"2025-12-25T22:01:18.045668717+01:00","level":"INFO","msg":"stream: starting","core version":"0.23.1"}
-{"time":"2025-12-25T22:01:18.355686402+01:00","level":"INFO","msg":"stream: created new stream","id":"j2qbp76x"}
-{"time":"2025-12-25T22:01:18.355821867+01:00","level":"INFO","msg":"handler: started","stream_id":"j2qbp76x"}
-{"time":"2025-12-25T22:01:18.355970314+01:00","level":"INFO","msg":"stream: started","id":"j2qbp76x"}
-{"time":"2025-12-25T22:01:18.355996803+01:00","level":"INFO","msg":"writer: started","stream_id":"j2qbp76x"}
-{"time":"2025-12-25T22:01:18.3560004+01:00","level":"INFO","msg":"sender: started","stream_id":"j2qbp76x"}
-{"time":"2025-12-25T22:02:04.266960813+01:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/files/handsoncv-research/handsoncv-fusion/j2qbp76x/file_stream"}
-{"time":"2025-12-25T22:02:04.267030904+01:00","level":"ERROR+4","msg":"filestream: fatal error: filestream: failed to upload: 404 Not Found path=files/handsoncv-research/handsoncv-fusion/j2qbp76x/file_stream: {\"error\":\"run handsoncv-fusion/j2qbp76x not found while streaming file\"}"}

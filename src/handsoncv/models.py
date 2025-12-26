@@ -8,14 +8,16 @@ The following classes are based on the notebooks provided for the Nvidia course 
 
 class Embedder(nn.Module):
     """Reusable encoder backbone based on Nvidia 05_Assessment class."""
-    def __init__(self, in_ch, downsample_mode='maxpool', return_vector=False, emb_dim=128):
+    def __init__(self, in_ch, downsample_mode='maxpool', return_vector=False, emb_dim_interm=200, emb_dim_late=128):
         super().__init__()
         self.return_vector = return_vector 
+        self.emb_dim_interm = emb_dim_interm
+        self.emb_dim_late = emb_dim_late
         
         # Build layers dynamically to handle downsampling modes
         layers = []
         # Define the channel progression: in -> 50 -> 100 -> 200 -> 200
-        channels = [in_ch, 50, 100, 200, 200]
+        channels = [in_ch, 50, 100, emb_dim_interm] #, 200] # Let's start with a smaller, less complex model
         
         for i in range(len(channels) - 1):
             in_c = channels[i]
@@ -40,11 +42,11 @@ class Embedder(nn.Module):
             # Spatial size is 4x4 after 4 downsamplings of a 64x64 input (64 -> 32 -> 16 -> 8 -> 4)
             self.fc_emb = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(200 * 4 * 4, 512),
+                nn.Linear(200 * 8 * 8, 512), #nn.Linear(200 * 4 * 4, 512) if we add one more layer and make the Embedder deeper
                 nn.ReLU(),
                 nn.Linear(512, 128),
                 nn.ReLU(),
-                nn.Linear(128, emb_dim) # The low-dim bottleneck (e.g., 2)
+                nn.Linear(128, emb_dim_late) # The low-dim bottleneck (e.g., 2)
             )
         
     def _get_downsample(self, ch, mode):
@@ -64,17 +66,17 @@ class Embedder(nn.Module):
 
 class LateFusionNet(nn.Module):
     """Late Fusion Net based on Nvidia 05_Assessment class."""
-    def __init__(self, num_classes=2, emb_dim=128, downsample_mode='maxpool'):
+    def __init__(self, num_classes=2, emb_dim_interm=200, emb_dim_late=128, downsample_mode='maxpool'):
         super().__init__()
         # return_vector=True makes the embedder spit out a 1D vector (embedding)
-        self.rgb_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=True, emb_dim=emb_dim)
-        self.lidar_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=True, emb_dim=emb_dim)
+        self.rgb_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=True, emb_dim_interm=emb_dim_interm, emb_dim_late=emb_dim_late)
+        self.lidar_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=True, emb_dim_interm=emb_dim_interm, emb_dim_late=emb_dim_late)
         
         # After convs and flattening: 200*4*4 = 3200
         self.classifier = nn.Sequential(
-            nn.Linear(emb_dim * 2, emb_dim * 10),
+            nn.Linear(emb_dim_late * 2, emb_dim_late * 10),
             nn.ReLU(),
-            nn.Linear(emb_dim * 10, num_classes)
+            nn.Linear(emb_dim_late * 10, num_classes)
         )
 
     def forward(self, rgb, lidar):
@@ -85,15 +87,17 @@ class LateFusionNet(nn.Module):
 
 class IntermediateFusionNet(nn.Module):
     """Intermediate Fusion Net based on Nvidia 05_Assessment class with additional fusion strategies."""
-    def __init__(self, mode='concat', num_classes=2, downsample_mode='maxpool'):
+    def __init__(self, mode='concat', num_classes=2, emb_dim_interm=200, downsample_mode='maxpool'):
         super().__init__()
         self.mode = mode
         # return_vector=False keeps the 4D feature map [B, 200, 4, 4]
-        self.rgb_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=False)
-        self.lidar_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=False)
+        self.rgb_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=False, emb_dim_interm=emb_dim_interm)
+        self.lidar_encoder = Embedder(4, downsample_mode=downsample_mode, return_vector=False, emb_dim_interm=emb_dim_interm)
         
         # # Feature maps are 200x4x4 = 3200 elements per modality
-        in_features = 3200 * 2 if mode == 'concat' else 3200 # add and mul preserve the channel dimension (200)
+        # Feature maps dimensiones modified for lighter embedder : 200x8x8 = 12800 elements per modality
+        in_features = 12800 * 2 if mode == 'concat' else 12800 # add and mul preserve the channel dimension (200)
+        # in_features = 3200 * 2 if mode == 'concat' else 3200 # add and mul preserve the channel dimension (200)
         
         self.classifier = nn.Sequential(
             nn.Flatten(),
