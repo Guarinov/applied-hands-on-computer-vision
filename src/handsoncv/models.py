@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -200,7 +201,7 @@ class CrossModalProjector(nn.Module):
         return self.net(x)
 
 class RGB2LiDARClassifier(nn.Module):
-    """Phase 4: RGB input -> CILP RGB Enc -> Projector -> Lidar Classifier Head."""
+    """Fine-Tuning inspired by "Visual Instruction Tuning": RGB input -> CILP RGB Enc -> Projector -> Lidar Classifier Head."""
     def __init__(self, rgb_enc, projector, lidar_classifier):
         super().__init__()
         self.rgb_enc = rgb_enc
