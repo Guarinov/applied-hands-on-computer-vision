@@ -3,6 +3,11 @@
 .ipynb_checkpoints/
 *.ipynb_checkpoints/
 
+# Model checkpoints
+Assignment-2/checkpoints/
+*.pt
+*.pth
+
 # Python cache, OS files, env files
 __pycache__/
 *.pyc

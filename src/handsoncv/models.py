@@ -157,9 +157,9 @@ class LidarClassifier(nn.Module):
             nn.Linear(128, num_classes)
         )
 
-    def forward(self, x, return_embs=False, f=None):
-        if x is not None:
-            f = self.embedder(x)
+    def forward(self, raw_data=None, return_embs=False, f=None):
+        if raw_data is not None:
+            f = self.embedder(raw_data)
             if return_embs:
                 return f.flatten(1) # Return the [B, 12800] embedding
         return self.classifier(f)
@@ -168,7 +168,7 @@ class CILPModel(nn.Module):
     """Contrastive Pretraining Model for Image-LiDAR embeddings Pairs (CILP) based on Nvidia 05_Assessment class."""
     def __init__(self, emb_dim_interm=200, emb_dim_late=200):
         super().__init__()
-        # return_vector=True gives us the [B, 128] bottleneck
+        # Return_vector=True gives us the [B, 128] bottleneck
         self.img_embedder = Embedder(4, return_vector=True, emb_dim_interm=emb_dim_interm, emb_dim_late=emb_dim_late)
         self.lidar_embedder = Embedder(4, return_vector=True, emb_dim_interm=emb_dim_interm, emb_dim_late=emb_dim_late)
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -177,12 +177,12 @@ class CILPModel(nn.Module):
         img_emb = self.img_embedder(rgb)
         lidar_emb = self.lidar_embedder(lidar)
         
-        # Normalize for cosine similarity
+        # Normalize for cosine similarity to avoid inefficiently computing pairwise cosine similarities, as in the Nvidia 05_Assessment class
         img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
         lidar_emb = lidar_emb / lidar_emb.norm(dim=-1, keepdim=True)
         
         # Matrix of similarities [Batch, Batch]
-        logits = img_emb @ lidar_emb.t() * self.logit_scale.exp()
+        logits = img_emb @ lidar_emb.t() * self.logit_scale.exp() # Cosine similarity ((a * b)/(||a||*||b||)) scaled with learnable temperature
         return logits
 
 class CrossModalProjector(nn.Module):
@@ -209,7 +209,6 @@ class RGB2LiDARClassifier(nn.Module):
         self.lidar_classifier = lidar_classifier # trained LidarClassifier
 
     def forward(self, x):
-        with torch.no_grad():
-            img_emb = self.rgb_enc(x) # RGB Encoder trained with contrastive pretraining 
+        img_emb = self.rgb_enc(x) # RGB Encoder trained with contrastive pretraining 
         proj_lidar_emb = self.projector(img_emb) #Flattened to match [B, 200, 8, 8] expected by LiDAR's classifier head
         return self.lidar_classifier(f=proj_lidar_emb)
