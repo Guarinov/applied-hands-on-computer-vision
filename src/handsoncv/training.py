@@ -9,6 +9,14 @@ The following functions are based on the utils provided for the Nvidia course Bu
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+def preprocess_model_input(rgb, lidar, task_mode="fusion"):
+    if task_mode in ["fusion", "contrastive"]:
+        return rgb, lidar
+    elif task_mode == "lidar-only":
+        return lidar
+    elif task_mode == "fine-tuning":
+        return rgb
+
 def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterion, device, 
                             task_mode="fusion", epochs=10, scheduler=None, cilp_extras=None):
     """
@@ -43,31 +51,33 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
         for rgb, lidar, labels in train_loader:
             rgb, lidar, labels = rgb.to(device), lidar.to(device), labels.to(device)
             optimizer.zero_grad()
+            outputs = model(preprocess_model_input(rgb, lidar, task_mode))
+            loss = criterion(outputs, labels) 
 
-            if task_mode in ["fusion", "contrastive"]:
-                outputs = model(rgb, lidar)
-            elif task_mode == "lidar-only":
-                outputs = model(lidar)
-            elif task_mode == "projector":
-                # cilp_extras should contain sfrozen embedders
-                with torch.no_grad():
-                    img_emb = cilp_extras['img_enc'](rgb)
-                    target_lidar_emb = cilp_extras['lidar_cnn'].embedder(lidar).flatten(1)
-                outputs = model(img_emb)
-            elif task_mode == "fine-tuning":
-                outputs = model(rgb)
+            # if task_mode in ["fusion", "contrastive"]:
+            #     outputs = model(rgb, lidar)
+            # elif task_mode == "lidar-only":
+            #     outputs = model(lidar)
+            # elif task_mode == "projector":
+            #     # cilp_extras should contain sfrozen embedders
+            #     with torch.no_grad():
+            #         img_emb = cilp_extras['img_enc'](rgb)
+            #         target_lidar_emb = cilp_extras['lidar_cnn'].embedder(lidar).flatten(1)
+            #     outputs = model(img_emb)
+            # elif task_mode == "fine-tuning":
+            #     outputs = model(rgb)
             
-            if task_mode == "contrastive":
-                # CLIP Loss logic adapted to CILP (RGB-LiDAR) setting
-                logits_per_image = outputs
-                logits_per_lidar = outputs.t()
-                ground_truth = torch.arange(len(rgb), device=device)
-                loss = (criterion(logits_per_image, ground_truth) + 
-                        criterion(logits_per_lidar, ground_truth)) / 2 # 2 CE
-            elif task_mode == "projector":
-                loss = criterion(outputs, target_lidar_emb) #MSE
-            else:
-                loss = criterion(outputs, labels) #CE
+            # if task_mode == "contrastive":
+            #     # CLIP Loss logic adapted to CILP (RGB-LiDAR) setting
+            #     logits_per_image = outputs
+            #     logits_per_lidar = outputs.t()
+            #     ground_truth = torch.arange(len(rgb), device=device)
+            #     loss = (criterion(logits_per_image, ground_truth) + 
+            #             criterion(logits_per_lidar, ground_truth)) / 2 # 2 CE
+            # elif task_mode == "projector":
+            #     loss = criterion(outputs, target_lidar_emb) #MSE
+            # else:
+            #     loss = criterion(outputs, labels) #CE
             
             loss.backward()
             optimizer.step()
@@ -91,33 +101,42 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
             for step, (rgb, lidar, labels) in enumerate(val_loader):
                 rgb, lidar, labels = rgb.to(device), lidar.to(device), labels.to(device)
                 
-                # Logic same as training for outputs
-                if task_mode in ["fusion", "contrastive"]: outputs = model(rgb, lidar)
-                elif task_mode == "lidar_only": 
-                    outputs = model(lidar) 
-                elif task_mode == "projector":
-                    img_emb = cilp_extras['img_enc'](rgb)
-                    target_lidar_emb = cilp_extras['lidar_cnn'].embedder(lidar).flatten(1)
-                    outputs = model(img_emb)
-                elif task_mode == "fine-tuning": outputs = model(rgb)
+                outputs = model(preprocess_model_input(rgb, lidar, task_mode))
+                val_loss += criterion(outputs, labels).item() 
+                _, predicted = torch.max(outputs.data, 1)
+                correct += (predicted == labels).sum().item()
+                total += labels.size(0)
                 
-                # Loss
-                if task_mode == "contrastive":
-                    gt = torch.arange(len(rgb), device=device)
-                    val_loss += ((criterion(outputs, gt) + criterion(outputs.t(), gt)) / 2).item() #2 CE
-                elif task_mode == "projector":
-                    val_loss += criterion(outputs, target_lidar_emb).item()
-                else:
-                    val_loss += criterion(outputs, labels).item() 
-                    _, predicted = torch.max(outputs.data, 1)
-                    correct += (predicted == labels).sum().item()
-                    total += labels.size(0)
+                # # Logic same as training for outputs
+                # if task_mode in ["fusion", "contrastive"]: 
+                #     outputs = model(rgb, lidar)
+                # elif task_mode == "lidar_only": 
+                #     outputs = model(lidar) 
+                # elif task_mode == "projector":
+                #     img_emb = cilp_extras['img_enc'](rgb)
+                #     target_lidar_emb = cilp_extras['lidar_cnn'].embedder(lidar).flatten(1)
+                #     outputs = model(img_emb)
+                # elif task_mode == "fine-tuning": outputs = model(rgb)
+                
+                # # Loss
+                # if task_mode == "contrastive":
+                #     gt = torch.arange(len(rgb), device=device)
+                #     val_loss += ((criterion(outputs, gt) + criterion(outputs.t(), gt)) / 2).item() #2 CE
+                # elif task_mode == "projector":
+                #     val_loss += criterion(outputs, target_lidar_emb).item()
+                # else:
+                #     val_loss += criterion(outputs, labels).item() 
+                #     # _, predicted = torch.max(outputs.data, 1)
+                #     predicted = (outputs >= 0).long()
+                #     correct += (predicted == labels).sum().item()
+                #     total += labels.size(0)
                     
                 # Log sample predictions to W&B (up to 5 samples per epoch, Task 1.3 requirement) 
                 if step == 0: # Only from the first batch of val to keep it consistent
                     for j in range(min(len(labels), 5)):
                         img_vis = rgb[j][:3].cpu().permute(1, 2, 0).numpy()
                         lidar_vis = lidar[j][3].cpu().numpy() # Z channel
+                        # lidar_vis = lidar[j][0].cpu().numpy() 
                         
                         true_label = label_names[labels[j].item()]
                         if task_mode == "contrastive":
@@ -127,6 +146,7 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                         else: 
                             # (fusion, lidar-only, fine-tuning)
                             pred_idx = torch.max(outputs, 1)[1][j].item()
+                            # pred_idx = ((outputs >= 0).long())[j].item()
                             p_label = label_names.get(pred_idx, "unknown")
                         
                         prediction_table.add_data(epoch, wandb.Image(img_vis), wandb.Image(lidar_vis), 
