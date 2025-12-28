@@ -3,6 +3,7 @@ import os
 import torch
 import time
 import wandb
+import torch.nn.functional as F
 
 from handsoncv.visualization import log_similarity_heatmap
 
@@ -22,6 +23,7 @@ def search_checkpoint_model(checkpoints_dir, instantiated_model, task_mode='lida
         print(f"No checkpoint found at {checkpoint_path}. Using instantiated model as is.")
 
     # Freeze parameters and set eval mode for cross-modal projector training
+    # if task_mode == 'contrastive':
     if task_mode != 'projector':
         for param in instantiated_model.parameters():
             param.requires_grad = False
@@ -44,6 +46,9 @@ def preprocess_model_input(rgb, lidar, task_mode="fusion", cilp_extras=None):
     elif task_mode == "fine-tuning":
         return rgb
     elif task_mode == "projector" and cilp_extras is not None:
+        for param in cilp_extras['img_enc'].parameters():
+            param.requires_grad = False
+        cilp_extras['img_enc'].eval() 
         img_emb = cilp_extras['img_enc'](rgb)
         return img_emb
     raise ValueError(f"Unknown task_mode: {task_mode}")
@@ -101,9 +106,15 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
             if task_mode == "contrastive":
                 loss = contrastive_loss(outputs, criterion, device)
             elif task_mode == "projector" and cilp_extras is not None:
-                target_lidar_emb = cilp_extras['lidar_cnn'](lidar, return_embs=True).flatten(1)
+                for param in cilp_extras['lidar_cnn'].parameters():
+                    param.requires_grad = False
+                cilp_extras['lidar_cnn'].eval()
+                target_lidar_emb = cilp_extras['lidar_cnn'](lidar, return_embs=True) #.flatten(1)
+                # target_lidar_emb = F.normalize(target_lidar_emb, dim=1)
+                # preds = F.normalize(outputs, dim=1)
                 loss = criterion(outputs, target_lidar_emb) #MSE
             else:
+                labels = labels.float().unsqueeze(1) 
                 loss = criterion(outputs, labels)
             
             loss.backward()
@@ -127,7 +138,7 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
         with torch.no_grad():
             for step, (rgb, lidar, labels) in enumerate(val_loader):
                 rgb, lidar, labels = rgb.to(device), lidar.to(device), labels.to(device)
-                
+                                
                 model_inputs = preprocess_model_input(rgb, lidar, task_mode, cilp_extras)
                 if isinstance(model_inputs, tuple):
                     outputs = model(*model_inputs)
@@ -137,12 +148,17 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                 if task_mode == "contrastive":
                     val_loss += contrastive_loss(outputs, criterion, device)
                 elif task_mode == "projector" and cilp_extras is not None:
-                    target_lidar_emb = cilp_extras['lidar_cnn'](lidar, return_embs=True).flatten(1)
+                    target_lidar_emb = cilp_extras['lidar_cnn'](lidar, return_embs=True) #.flatten(1)
+                    # target_lidar_emb = F.normalize(target_lidar_emb, dim=1)
+                    # preds = F.normalize(outputs, dim=1)
                     val_loss += criterion(outputs, target_lidar_emb) #MSE
                 else:
+                    labels = labels.float().unsqueeze(1) 
                     val_loss += criterion(outputs, labels)
-                    _, predicted = torch.max(outputs.data, 1)
+                    predicted = (torch.sigmoid(outputs) > 0.5).float()
                     correct += (predicted == labels).sum().item()
+                    # _, predicted = torch.max(outputs.data, 1)
+                    # correct += (predicted == labels).sum().item()
                     total += labels.size(0)
                     
                 # Log sample predictions to W&B (up to 5 samples per epoch, Task 1.3 requirement) 
@@ -165,7 +181,7 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                         
                         prediction_table.add_data(epoch, wandb.Image(img_vis), wandb.Image(lidar_vis), 
                                                   true_label, p_label)
-
+        
         avg_val_loss = val_loss / (step+1) #len(val_loader)
         acc = (100 * correct / total) if total > 0 else 0.0
         
@@ -191,16 +207,21 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
             "peak_gpu_mem_mb": peak_mem_mb,
             "sample_predictions": prediction_table
         }
-                    
-        print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}, Acc: {acc:.2f}% | Mem: {peak_mem_mb:.1f}MB")
+        
+        if task_mode == "projector":            
+            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.6f}, Acc: {acc:.2f}% | Mem: {peak_mem_mb:.1f}MB")
+        else:
+            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}, Acc: {acc:.2f}% | Mem: {peak_mem_mb:.1f}MB")
         if task_mode == "contrastive":
             print("Accuracy not applicable to the embedding alignment task -> Similarity matrix (first 8x8):")
             
             with torch.no_grad():
-                cos_sim = outputs[:8, :8]/ model.logit_scale.exp()
+                # cos_sim = outputs[:8, :8] 
+                cos_sim = outputs[:8, :8]/model.logit_scale.exp()
+                # cos_sim_wandb = outputs[:16, :16] 
                 cos_sim_wandb = outputs[:16, :16]/ model.logit_scale.exp()
                 cos_sim, cos_sim_wandb = cos_sim.clamp(-1, 1), cos_sim_wandb.clamp(-1, 1)
-                vis, vis_wandb = (cos_sim + 1) / 2, (cos_sim_wandb + 1) / 2
+                vis, vis_wandb = (cos_sim + 1) / 2, (cos_sim_wandb + 1) / 2 #cos_sim, cos_sim_wandb #(cos_sim + 1) / 2, (cos_sim_wandb + 1) / 2
                 np.set_printoptions(precision=3, suppress=True)
                 print(vis.detach().cpu().numpy())
                 
