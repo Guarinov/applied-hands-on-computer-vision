@@ -187,8 +187,12 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
         
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
+            if task_mode != "fusion":
+                checkpoint_name = task_mode 
+            else: 
+                checkpoint_name = f"{task_mode}_{wandb.config['fusion_strategy']}_{wandb.config['downsample_mode']}"
             checkpoint_path = os.path.join(
-                check_dir, f"{task_mode}_best_model.pt"
+                check_dir, f"{checkpoint_name}_best_model.pt"
             )
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Saved new best model to {checkpoint_path}")
