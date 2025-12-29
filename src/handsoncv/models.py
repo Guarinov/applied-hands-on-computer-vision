@@ -227,6 +227,7 @@ class CrossModalProjector(nn.Module):
     def __init__(self, rgb_dim=200, lidar_dim=3200): #12800 if using 8x8 feature maps; 3200 if using 4x4 feature maps
         super().__init__()
         self.net = nn.Sequential(
+            # nn.LayerNorm(rgb_dim), 
             nn.Linear(rgb_dim, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(),
@@ -236,6 +237,7 @@ class CrossModalProjector(nn.Module):
             nn.ReLU(),
             # nn.Linear(512, lidar_dim),
             nn.Linear(2048, lidar_dim),
+            # nn.BatchNorm1d(lidar_dim) 
         )
 
     def forward(self, x):
@@ -251,6 +253,5 @@ class RGB2LiDARClassifier(nn.Module):
 
     def forward(self, x):
         img_emb = self.rgb_enc(x) # RGB Encoder trained with contrastive pretraining 
-        # img_emb = img_emb / (img_emb.norm(p=2, dim=1, keepdim=True) + 1e-12)        
         proj_lidar_emb = self.projector(img_emb) #Flattened to match [B, 200, 8, 8] or [B, 200, 4, 4] expected by LiDAR's classifier head
         return self.lidar_classifier(f=proj_lidar_emb)

@@ -146,15 +146,15 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                     outputs = model(model_inputs)
                     
                 if task_mode == "contrastive":
-                    val_loss += contrastive_loss(outputs, criterion, device)
+                    val_loss += contrastive_loss(outputs, criterion, device).item() 
                 elif task_mode == "projector" and cilp_extras is not None:
                     target_lidar_emb = cilp_extras['lidar_cnn'](lidar, return_embs=True) #.flatten(1)
                     # target_lidar_emb = F.normalize(target_lidar_emb, dim=1)
                     # preds = F.normalize(outputs, dim=1)
-                    val_loss += criterion(outputs, target_lidar_emb) #MSE
+                    val_loss += criterion(outputs, target_lidar_emb).item()  #MSE
                 else:
                     labels = labels.float().unsqueeze(1) 
-                    val_loss += criterion(outputs, labels)
+                    val_loss += criterion(outputs, labels).item() 
                     predicted = (torch.sigmoid(outputs) > 0.5).float()
                     correct += (predicted == labels).sum().item()
                     # _, predicted = torch.max(outputs.data, 1)
@@ -182,7 +182,7 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                         prediction_table.add_data(epoch, wandb.Image(img_vis), wandb.Image(lidar_vis), 
                                                   true_label, p_label)
         
-        avg_val_loss = val_loss / (step+1) #len(val_loader)
+        avg_val_loss = val_loss / (step+1)
         acc = (100 * correct / total) if total > 0 else 0.0
         
         if avg_val_loss < best_val_loss:
