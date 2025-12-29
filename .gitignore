@@ -4,7 +4,7 @@
 *.ipynb_checkpoints/
 
 # Model checkpoints
-Assignment-2/checkpoints/
+# Assignment-2/checkpoints/
 *.pt
 *.pth
 
