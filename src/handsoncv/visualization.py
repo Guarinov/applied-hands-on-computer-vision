@@ -5,7 +5,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.patches as patches
 import pandas as pd
 import numpy as np
-import os
 
 """
 The following functions expand upon the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
@@ -144,9 +143,13 @@ def plot_table_task4_metrics(df, output_path):
     
     # Outer Rounded Legend Box
     leg_outer = patches.FancyBboxPatch(
-        (leg_x_start, leg_y - 0.25), leg_x_end - leg_x_start, 1.1,
+        (leg_x_start, leg_y - 0.25), 
+        leg_x_end - leg_x_start, 1.1,
         boxstyle="round,pad=0.02,rounding_size=0.1",
-        linewidth=1.5, edgecolor='#CCCCCC', facecolor='none', zorder=4
+        linewidth=1.5, 
+        edgecolor='#CCCCCC', 
+        facecolor='none', 
+        zorder=4
     )
     ax.add_patch(leg_outer)
     
@@ -167,7 +170,7 @@ def plot_table_task4_metrics(df, output_path):
     # Rank 2 Box in Legend
     r2_x = leg_x_start + 0.9
     ax.add_patch(patches.FancyBboxPatch(
-        (r2_x - 0.1, leg_y - 0.15), 0.2, 0.8,
+        (r2_x - 0.1, leg_y - 0.15), 0.2, 0.75,
         boxstyle="round,pad=0.02,rounding_size=0.1",
         linewidth=1.5, edgecolor=light_blue, facecolor=light_blue_interior, zorder=5
     ))
@@ -236,12 +239,178 @@ def plot_table_task4_metrics(df, output_path):
             # For Difference row, maybe use a sign (+/-)
             if model_id == 'Difference' and val > 0:
                 text_val = "+" + text_val
-            # elif model_id == 'Difference' and val < 0:
-            #     text_val = "-" + text_val
             
             color = 'black' if model_id != 'Difference' else "#777676"
             fontsize = 13 if model_id != 'Difference' else 12
             ax.text(x_pos, y_pos, text_val, ha='center', va='center', fontsize=fontsize, color=color, zorder=2)
+
+    plt.savefig(output_path, dpi=300, bbox_inches='tight', transparent=True)
+    plt.show()
+
+def plot_table_task3_metrics(df, output_path):
+    """
+    Plot a ranked table comparing model variants across Task 3 metrics (please do not modify this function, as several visualization components are hard-coded).
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing model variants and metric values.
+    output_path : str or pathlib.Path
+        Path where the generated figure will be saved.
+    """
+    # Data Preparation
+    if 'Architecture' in df.columns:
+        df = df.set_index('Architecture')
+    
+    df_variants = df.copy()
+    lower_is_better = ['val_loss', 'params', 'sec_per_epoch', 'gpu_mem_mb']
+    
+    # Calculate Ranks
+    ranks = pd.DataFrame(index=df_variants.index)
+    for col in df_variants.columns:
+        if col in lower_is_better:
+            ranks[col] = df_variants[col].rank(ascending=True, method='min')
+        else:
+            ranks[col] = df_variants[col].rank(ascending=False, method='min')
+
+    # Sort variants by mean rank (Best on top)
+    df_variants['mean_rank'] = ranks.mean(axis=1)
+    df_variants = df_variants.sort_values('mean_rank')
+    ranks = ranks.loc[df_variants.index]
+    
+    df_final = df_variants.drop(columns=['mean_rank'])
+    models_to_plot = df_final.index.tolist()
+    
+    # Design Parameters
+    sage_green = (59/255, 217/255, 135/255, 1.0) #(17/255, 69/255, 30/255, 0.4) 
+    sage_green_interior = (59/255, 217/255, 135/255, .7)
+    light_blue = (173/255, 216/255, 230/255, .6)
+    light_blue_interior = (173/255, 216/255, 230/255, .4)
+    dark_blue = (126/255, 141/255, 194/255, 1.0)
+    dark_blue_interior = (126/255, 141/255, 194/255, .4)
+    unranked_grey = '#BBBBBB' # Color for 3rd rank and below
+    
+    metrics = ['val_loss', 'accuracy', 'params', 'sec_per_epoch', 'gpu_mem_mb']
+    x_positions = [0, 0.45, 1.0, 1.6, 2.15] 
+    
+    # Create Figure
+    fig, ax = plt.subplots(figsize=(8, len(models_to_plot) * 1.4))
+    ax.set_xlim(-0.7, x_positions[-1] + 0.8)
+    ax.set_ylim(-0.5, len(models_to_plot) + 2)
+    ax.axis('off')
+
+    # Header
+    header_y = len(models_to_plot) - 0.4
+    for i, col in enumerate(metrics):
+        name = col.replace('_', ' ').replace('sec per epoch', 'sec/ep').lower()
+        ax.text(x_positions[i], header_y, name, ha='center', fontsize=13) # fontweight='bold', color='#444444')
+    
+    # Lines
+    v_line_x = x_positions[0] - 0.25
+    h_line_y = len(models_to_plot) - 0.5
+    bottom_y = -0.6
+    right_x = x_positions[-1] + 0.3
+    ax.plot([v_line_x, right_x], [h_line_y, h_line_y], color='#777676', linewidth=1, zorder=3)
+    ax.plot([v_line_x, v_line_x], [bottom_y, h_line_y], color='#777676', linewidth=1, zorder=3)
+    
+    # Legend Contour
+    leg_y = len(models_to_plot) + 0.4
+    leg_x_start = .8
+    ax.add_patch(patches.FancyBboxPatch(
+        (leg_x_start, leg_y - 0.2), 
+        1.7, 
+        0.8,
+        boxstyle="round,pad=0.02,rounding_size=0.1",
+        linewidth=1, 
+        edgecolor='#CCCCCC', 
+        facecolor='none', 
+        zorder=4
+    ))
+    
+    ax.text(leg_x_start + 0.05, leg_y + 0.25, "Ranking", fontsize=15, color='#666666')
+    ax.text(leg_x_start + 0.05, leg_y + 0.05, "column-wise", fontsize=11, color='#888888', va='center')
+    ax.text(leg_x_start + 0.2, leg_y - 0.4, "↓", fontsize=20, color='#888888', ha='center')
+    
+    # Legend 1st
+    ax.add_patch(patches.FancyBboxPatch((leg_x_start + 0.68, leg_y - 0.1), 0.25, 0.6, 
+                 boxstyle="round,pad=0.02,rounding_size=0.1", edgecolor=sage_green, facecolor=sage_green_interior))
+    ax.text(leg_x_start + 0.8, leg_y + 0.1, "1st", ha='center', fontsize=13)
+    
+    # Legend 2nd
+    ax.add_patch(patches.FancyBboxPatch((leg_x_start + 1.03, leg_y - 0.1), 0.25, .55, 
+                 boxstyle="round,pad=0.02,rounding_size=0.11", edgecolor=light_blue, facecolor=light_blue_interior))
+    ax.text(leg_x_start + 1.15, leg_y + 0.1, "2nd", ha='center', fontsize=13)
+    
+    # Legend 3rd
+    ax.add_patch(patches.FancyBboxPatch((leg_x_start + 1.38, leg_y - 0.1), 0.25, .50, 
+                 boxstyle="round,pad=0.02,rounding_size=0.1", edgecolor=dark_blue, facecolor=dark_blue_interior))
+    ax.text(leg_x_start + 1.5, leg_y + 0.1, "3rd", ha='center', fontsize=13)
+
+
+    # Draw Rows
+    for row_idx, model_id in enumerate(reversed(models_to_plot)):
+        y_pos = row_idx  
+        ax.text(v_line_x - 0.06, y_pos, model_id.lower(), ha='right', va='center', fontsize=13, color='black')
+
+        for col_idx, col_name in enumerate(metrics):
+            val = df_final.loc[model_id, col_name]
+            rank = ranks.loc[model_id, col_name]
+            x_pos = x_positions[col_idx]
+            
+            # Coloring Logic based on Rank per column
+            draw_patch = False
+            text_color = unranked_grey
+            
+            if rank == 1:
+                color, edgecolor = sage_green_interior, sage_green
+                draw_patch = True
+                text_color = 'black'
+                box_w = 0.52 if col_name in ["params", "gpu_mem_mb"] else 0.31
+                box_h = 0.8
+                r_style="round,pad=0.01,rounding_size=0.15"
+            elif rank == 2:
+                color, edgecolor = light_blue_interior, light_blue
+                draw_patch = True
+                text_color = 'black'
+                box_w = 0.49 if col_name in ["params", "gpu_mem_mb"] else 0.28
+                box_h = 0.7
+                r_style="round,pad=0.01,rounding_size=0.17"
+            elif rank == 3:
+                color, edgecolor = dark_blue_interior, dark_blue
+                draw_patch = True
+                text_color = 'black'
+                box_w = 0.47 if col_name in ["params", "gpu_mem_mb"] else 0.26
+                box_h = 0.6
+                r_style="round,pad=0.01,rounding_size=0.19"
+                
+            if draw_patch:
+                rect = patches.FancyBboxPatch(
+                    (x_pos - box_w/2, y_pos - box_h/2), 
+                    box_w, box_h,
+                    boxstyle=r_style,
+                    linewidth=2,
+                    facecolor=color,
+                    edgecolor=edgecolor,
+                    mutation_scale=.7, 
+                    zorder=1
+                )
+                ax.add_patch(rect)
+            
+            # Formatting
+            if col_name == 'accuracy':
+                text_val = f"{val/100:.3f}" if val > 1 else f"{val:.3f}"
+            elif col_name == 'val_loss':
+                text_val = f"{val:.4f}"
+            elif col_name == 'params':
+                text_val = f"{int(val):,}"
+            else:
+                text_val = f"{val:.3f}"
+            
+            # Zero-stripping 
+            if text_val.startswith("0."):
+                text_val = text_val[1:]
+            
+            ax.text(x_pos, y_pos, text_val, ha='center', va='center', fontsize=13, color=text_color, zorder=2)
 
     plt.savefig(output_path, dpi=300, bbox_inches='tight', transparent=True)
     plt.show()
