@@ -18,6 +18,7 @@ The project follows the "src-layout" to ensure shared logic is easily accessible
 
 ```text
 Applied-Hands-On-Computer-Vision/
+├── .gitignore               # Git ignore file
 ├── pyproject.toml           # Project metadata and dependencies
 ├── LICENSE                  # Project license
 ├── README.md                # Setup and usage instructions
@@ -29,6 +30,12 @@ Applied-Hands-On-Computer-Vision/
 │       ├── training.py
 │       ├── utils.py
 │       └── visualization.py       
+├── tests/                   # Unit tests for src modules
+│   ├── test_datasets.py
+│   ├── test_models.py
+│   ├── test_training.py
+│   ├── test_utils.py
+│   └── test_visualization.py
 ├── Assignment-01/           # Folder for the first assessment
 │   ├── requirements.txt
 │   └── image-dataset-curation-with-specialist-models-LeNet5.ipynb     
@@ -39,8 +46,9 @@ Applied-Hands-On-Computer-Vision/
     │   ├── 01_dataset_exploration.ipynb  # Task 1
     │   └── ...                            # Task 2+
     ├── results/             # Figures and tables
-    └── scripts/             # Data download script
-        └── download_data.py
+    ├── scripts/             # Data download script
+    │   └── download_data.py
+    └── subset.json          # .json file containing train/val splits, seed and metadata
 ```
 
 ## 🐍 Setup Guide: Micromamba Environment
@@ -96,3 +104,12 @@ If you are using VS Code or Jupyter Notebooks, ensure you select the handsoncv k
 ```bash
 python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
 ```
+### 3. Run Tests 
+Once the environment is set up, you can run unit tests for the src/handsoncv modules using pytest:
+```bash
+pytest tests/ -v
+```
+This will execute all test files in the `tests/` folder and provide verbose output. Each `test_*.py` file should contain tests for the corresponding module in `src/handsoncv`.
+
+
+
