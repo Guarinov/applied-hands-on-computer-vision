@@ -159,7 +159,6 @@ The notebooks are organized to follow a logical experimental progression, summar
 | `04_*` | Cross-modal fine-tuning (CILP) | RGB → LiDAR projection and adaptation |
 
 ### Dataset Subsets and Reproducibility
-
 - Notebook `01_*` **must be run** if you want to recreate the dataset splits.  
 - The size of the subset can be controlled via the `PERCENTAGE_SUBSET` variable.  
 - The provided `subset.json` file stores **30% of the original dataset** and is sufficient to reproduce all reported results.
@@ -173,21 +172,16 @@ modify the `SEED` variable consistently across notebooks.
 This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
 
 ### Running the Experiments
-
 - If the provided `subset.json` is used, notebooks `02_*`, `03_*`, and `04_*` can be run directly.
 - These notebooks follow a **theoretical progression** but can be executed **independently**.
+  
+Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
 
 #### Notebook `04_*` (CILP and Cross-Modal Projection)
-
 - The initial configuration and dataloader setup must be executed.
 - Pretrained checkpoints for:
-  - the `Embedder`,
-  - the `CrossModalProjector`,
-  - and the `RGB2LiDARClassifier`
+  1. the `Embedder`,
+  2. the `CrossModalProjector`,
+  3. and the `LidarClassifier`
   
-  can be loaded directly to **evaluate the final model** without retraining.
-- The same applies to the `CrossModalProjector` evaluation subsection.
-
-### Additional Notes
-
-Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
+  can be loaded directly to **evaluate the final `RGB2LiDARClassifier` model** without retraining. The same applies to the `CrossModalProjector` evaluation subsection.
