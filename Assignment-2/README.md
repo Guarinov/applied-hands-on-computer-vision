@@ -1,6 +1,6 @@
 # CILP Assessment: Multimodal Learning
 
-This repository implements an end-to-end multimodal learning pipeline, covering dataset preparation, multimodal fusion modeling, architectural ablation studies, and cross-modal fine-tuning using a CLIP-inspired approach. RGB images and 2D LiDAR projections are jointly leveraged to study how complementary modalities can be fused, compared, and adapted across domains in a controlled experimental setting.
+This repository implements an end-to-end multimodal learning pipeline covering dataset preparation, multimodal fusion modeling, architectural ablation studies, and cross-modal fine-tuning using a CLIP-inspired approach. Synthetically generated RGB images and 2D LiDAR projections are jointly leveraged to study how complementary modalities can be fused, compared, and adapted across domains in a controlled experimental setting for foreground recognition of cubes and spheres.
 
 ## 🗺️ Repository Map
 
