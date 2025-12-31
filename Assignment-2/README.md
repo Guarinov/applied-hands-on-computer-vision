@@ -165,12 +165,7 @@ Each notebook and the corresponding modules in `src/` include detailed inline do
 
 #### Notebook `04_*` (CILP and Cross-Modal Projection)
 - The initial configuration and dataloader setup must be executed.
-- Pretrained checkpoints for:
-  1. the `Embedder`,
-  2. the `CrossModalProjector`,
-  3. and the `LidarClassifier`
-  
-  can be loaded directly to **evaluate the final `RGB2LiDARClassifier` model** without retraining. The same applies to the `CrossModalProjector` evaluation subsection.
+- Pretrained checkpoints for: the CILP-trained `Embedder`, the `CrossModalProjector`, and the `LidarClassifier` can be loaded directly to **evaluate the final `RGB2LiDARClassifier` model** without retraining. The same applies to the `CrossModalProjector` evaluation subsection.
 
 ---
 
