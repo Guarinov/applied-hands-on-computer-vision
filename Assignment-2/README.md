@@ -1,6 +1,6 @@
 # CILP Assessment: Multimodal Learning
 
-This project explores multimodal machine learning using a synthetic dataset from **NVIDIA Omniverse**, consisting of simple geometric objects—**cubes** and **spheres**—captured as RGB images and 2D LiDAR projections. The main task is **binary classification** of object shape using complementary information from both modalities. The workflow includes:
+This project explores multimodal machine learning using a synthetic dataset from **NVIDIA Omniverse**, consisting of simple geometric objects - **cubes** and **spheres** - captured as RGB images and 2D LiDAR projections. The main task is **binary classification** of object shape using complementary information from both modalities. The workflow includes:
 
 1. **Dataset Exploration and Preparation:**  
    - Build a **FiftyOne dataset** from the RGB and LiDAR images in `data/assessment/`.  
