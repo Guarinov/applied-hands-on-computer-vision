@@ -152,8 +152,7 @@ To introduce different randomness in:
 - dataloader shuffling,
 - model initialization,
 
-modify the `SEED` variable consistently across notebooks.  
-This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
+modify the `SEED` variable consistently across notebooks. This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
 
 --- 
 
