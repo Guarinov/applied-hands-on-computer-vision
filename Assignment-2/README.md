@@ -1,7 +1,5 @@
 # CILP Assessment: Multimodal Learning
 
----
-
 ## Setup Guide: Micromamba Environment
 
 This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
@@ -27,7 +25,7 @@ Invoke-Expression ((Invoke-WebRequest -Uri https://micro.mamba.pm/install.ps1).C
 ```
 
 ### 2. Create and Activate the Environment 
-From the project root (where pyproject.toml is located), create and activate the environment with Python 3.11:
+Install the project in editable mode to get all dependencies listed in pyproject.toml (including PyTorch ≥ 2.0, FiftyOne, etc.):
 ```bash
 micromamba create -n handsoncv python=3.11 -c conda-forge
 micromamba activate handsoncv
