@@ -1,5 +1,31 @@
 # CILP Assessment: Multimodal Learning
 
+This project explores multimodal machine learning using a synthetically generated dataset from **NVIDIA Omniverse**. The dataset consists of simple geometric objects—**cubes** and **spheres**—captured through two sensing modalities: RGB images and 2D LiDAR projections. The primary task is **binary classification** of object shape, leveraging complementary information from both modalities.
+
+The workflow across the notebooks includes:
+
+1. **Dataset Exploration and Preparation:**  
+   - Construction of a **FiftyOne dataset** from the RGB and LiDAR images in `data/assessment/`.  
+   - Alignment of RGB and LiDAR modalities by converting LiDAR beams to Cartesian coordinates and grouping paired samples.  
+   - Creation of reproducible training and validation splits (30% validation), stored as `.json` for consistent use in subsequent experiments.  
+   - Basic dataset statistics and visual inspection using the FiftyOne App.
+
+2. **Multimodal Fusion Experiments:**  
+   - Evaluation of **late fusion** (combining modalities at a later stage) and **intermediate fusion** (combining intermediate feature representations).  
+   - Comparison of fusion strategies and architectural variants to identify the most effective model design.
+
+3. **Ablation Studies:**  
+   - Investigation of **convolutional downsampling strategies** in the `Embedder` network (`Strided Convolution` vs `Max Pooling`).  
+   - Analysis of performance impact on classification accuracy, model complexity, and training efficiency.
+
+4. **Cross-Modal Fine-Tuning (CILP):**  
+   - Contrastive pretraining between RGB and LiDAR embeddings using a CLIP-like approach (`EfficientCILPModel`).  
+   - Cross-modal projection from RGB to LiDAR embedding space.  
+   - Fine-tuning of the combined pipeline to maximize RGB input accuracy relative to a LiDAR-only baseline.
+
+This repository provides the full pipeline, including **data preparation**, **multimodal model training**, **fusion strategy evaluation**, and **cross-modal projection and fine-tuning**, serving as a hands-on benchmark for multimodal learning research.
+
+
 ## 🐍 Setup Guide: Micromamba Environment
 
 This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
@@ -47,7 +73,7 @@ If you are using VS Code or Jupyter Notebooks, ensure you select the handsoncv k
 python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
 ```
 
-## 📥 Data Preparation
+## 📥 Data Download for Analysis Reproducibility 
 
 Before starting the analysis, we need to download the dataset. This can be done by running the script:
 ```bash
