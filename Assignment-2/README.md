@@ -30,6 +30,7 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 | `notebooks/` | Notebooks should be used **sequentially**, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality. |
 | `results/` | Folder containing: `.png` screenshots of the **FiftyOne App** from notebook `01_*`; **W&B dashboards** corresponding to each notebook training; visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
 | `scripts/` | Code for downloading data from Google Drive public link. |
+| `subset_splits.json` | `.json` file contraining the train/validation splits for the dataset, along with the random seed (`42`) and the subset percentage (`0.3`) used for sampling. |
 
 ## 🐍 Setup Guide: Micromamba Environment
 
