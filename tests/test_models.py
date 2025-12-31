@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 from handsoncv.models import (
-    Embedder, LateFusionNet, IntermediateFusionNet, EfficientCILPModel, CrossModalProjector, LidarClassifier, RGB2LiDARClassifier
+    Embedder, EmbedderStrided, LateFusionNet, IntermediateFusionNet, EfficientCILPModel, CrossModalProjector, LidarClassifier, RGB2LiDARClassifier
 )
 
 class TestModels:
@@ -21,6 +21,11 @@ class TestModels:
         
         # Test Intermediate output (Flattened feature map)
         model_int = Embedder(in_ch=4, return_vector=False)
+        out_int = model_int(rgb)
+        assert out_int.shape == (B, 200 * 4 * 4)
+        
+        # Test Intermediate output with Strided Variant as Downsampling Strategy (Flattened feature map)
+        model_int = EmbedderStrided(in_ch=4, return_vector=False)
         out_int = model_int(rgb)
         assert out_int.shape == (B, 200 * 4 * 4)
         
