@@ -28,10 +28,7 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 |------|---------|
 | `checkpoints/` | Contains the 9 best model checkpoints (`*.pt`), corresponding to the analyses in notebooks `02_*`, `03_*`, and `04_*`. Each checkpoint was selected based on lowest validation loss during training. |
 | `notebooks/` | Notebooks should be used **sequentially**, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality. |
-| `results/` | Folder containing:
-- `.png` screenshots of the **FiftyOne App** from notebook `01_*`.  
-- **W&B dashboards** corresponding to each notebook training.  
-- Visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
+| `results/` | Folder containing: `.png` screenshots of the **FiftyOne App** from notebook `01_*`; **W&B dashboards** corresponding to each notebook training; visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
 | `scripts/` | Code for downloading data from Google Drive public link. |
 
 ## 🗺️  W\&B Projects Links
