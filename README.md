@@ -108,7 +108,7 @@ micromamba activate handsoncv
 
 Install the project in editable mode to get all dependencies listed in `pyproject.toml` (including PyTorch ≥ 2.0, FiftyOne, etc.):
 ```bash
-(handsoncv) pip install -e . pip install -e .
+(handsoncv) pip install -e.
 ```
 
 #### A Note on Assignment-1
