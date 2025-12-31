@@ -2,21 +2,21 @@
 
 This project explores multimodal machine learning using a synthetic dataset from **NVIDIA Omniverse**, consisting of simple geometric objects - **cubes** and **spheres** - captured as RGB images and 2D LiDAR projections. The main task is **binary classification** of object shape using complementary information from both modalities. The workflow includes:
 
-1. **Dataset Exploration and Preparation:**  
+1. **Dataset Exploration and Preparation**  
    - Build a **FiftyOne dataset** from the RGB and LiDAR images in `data/assessment/`.  
    - Align modalities by converting LiDAR beams to Cartesian coordinates and grouping paired samples.  
    - Create reproducible splits: **20% validation**, with a `.json` storing **30% of the original data** for consistency across notebooks.  
    - Compute dataset statistics and visually inspect samples using FiftyOne.
 
-2. **Multimodal Fusion Experiments:**  
+2. **Multimodal Fusion Experiments**  
    - Evaluate **late fusion** (combine modalities at a later stage) and **intermediate fusion** (combine intermediate features).  
    - Compare fusion strategies and architectural variants to identify optimal designs.
 
-3. **Ablation Studies:**  
+3. **Ablation Studies**  
    - Analyze **convolutional downsampling** in the `Embedder` network (`Strided Convolution` vs `Max Pooling`).  
    - Measure effects on accuracy, model size, and training efficiency.
 
-4. **Cross-Modal Fine-Tuning (CILP):**  
+4. **Cross-Modal Fine-Tuning (CILP)**  
    - Contrastive pretraining of RGB and LiDAR embeddings using a CLIP-like approach (`EfficientCILPModel`).  
    - Project RGB embeddings into LiDAR space and fine-tune the pipeline to maximize RGB accuracy.
 
