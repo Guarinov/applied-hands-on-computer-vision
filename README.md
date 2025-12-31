@@ -62,14 +62,39 @@ This repository uses a virtual environment called `handsoncv`, created with **mi
 Micromamba is a tiny, fast, and standalone package manager that doesn't require a base Python installation.
 
 #### macOS / Linux
-Run the following in your terminal:
+Download the micromamba binary for your system architecture:
+
 ```bash
-"${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+# Example: macOS Apple Silicon (arm64)
+curl -Ls https://micro.mamba.pm/api/micromamba/osx-arm64/latest | tar -xvj bin/micromamba
 ```
-Restart your terminal after installation.
+
+Verify the binary architecture:
+
+```bash
+file bin/micromamba
+```
+
+Install it,
+```bash
+sudo mv bin/micromamba /usr/local/bin/micromamba
+```
+
+Initialize micromamba,
+```bash
+micromamba shell init -s zsh -r ~/micromamba
+source ~/.zshrc
+```
+
+For Linux x86_64, we replace the macOS URL with the Linux one
+
+```bash
+curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+```
+The shell initialization then works identically as on MacOs. Restart your terminal after installation.
 
 #### Windows (PowerShell)
-
+On Windows, 
 ```powershell
 Invoke-Expression ((Invoke-WebRequest -Uri https://micro.mamba.pm/install.ps1).Content)
 ```
@@ -83,7 +108,7 @@ micromamba activate handsoncv
 
 Install the project in editable mode to get all dependencies listed in `pyproject.toml` (including PyTorch ≥ 2.0, FiftyOne, etc.):
 ```bash
-pip install -e.
+(handsoncv) pip install -e . pip install -e .
 ```
 
 #### A Note on Assignment-1
@@ -96,17 +121,17 @@ The assignment can also be re-run using the shared `handsoncv` environment, whic
 ### 2. Verify the Installation
 To ensure PyTorch and other key packages are installed correctly:
 ```bash
-python -c "import torch; print(f'PyTorch version: {torch.__version__}'); import fiftyone as fo; print('FiftyOne installed')"
+(handsoncv) python -c "import torch; print(f'PyTorch version: {torch.__version__}'); import fiftyone as fo; print('FiftyOne installed')"
 ```
 
 If you are using VS Code or Jupyter Notebooks, ensure you select the handsoncv kernel. Since ipykernel is included in the dependencies, you can register it manually if it doesn't show up:
 ```bash
-python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
+(handsoncv) python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
 ```
 ### 3. Run Tests 
 Once the environment is set up, you can run unit tests for the src/handsoncv modules using pytest:
 ```bash
-pytest tests/ -v
+(handsoncv) pytest tests/ -v
 ```
 This will execute all test files in the `tests/` folder and provide verbose output. Each `test_*.py` file should contain tests for the corresponding module in `src/handsoncv`.
 
