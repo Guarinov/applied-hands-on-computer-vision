@@ -22,7 +22,7 @@ This project explores multimodal machine learning using a synthetic dataset from
 
 This repository provides the full pipeline - **data preparation, multimodal training, fusion evaluation, and cross-modal fine-tuning** - as a hands-on benchmark for multimodal learning research.
 
-## 🗺️  Repository Map
+## 🗺️ Repository Map
 
 | Path | Purpose |
 |------|---------|
@@ -31,7 +31,7 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 | `results/` | Folder containing: `.png` screenshots of the **FiftyOne App** from notebook `01_*`; **W&B dashboards** corresponding to each notebook training; visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
 | `scripts/` | Code for downloading data from Google Drive public link. |
 
-## 🗺️  W\&B Projects Links
+## 📊 W\&B Projects Links
 
 The runs associated with the analyses in `notebooks/` are available at the following public link [W&B Projects](https://wandb.ai/handsoncv-research/projects), , under the username `guarino-vanessa-emanuela` for proper W&B access.
 
