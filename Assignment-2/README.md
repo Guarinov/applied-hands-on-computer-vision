@@ -191,3 +191,8 @@ Each notebook and the corresponding modules in `src/` include detailed inline do
   3. and the `LidarClassifier`
   
   can be loaded directly to **evaluate the final `RGB2LiDARClassifier` model** without retraining. The same applies to the `CrossModalProjector` evaluation subsection.
+
+---
+
+### ⚠️ Limitations
+The dataset used in this project is synthetically generated using NVIDIA Omniverse and consists of simple geometric objects, which makes it suitable for controlled benchmarking but limits direct generalization to real-world RGB–LiDAR scenarios. For efficiency and reproducibility, experiments are conducted on a fixed subset (30\%) of the original dataset, and results may differ when training on the full data. Reported training times, GPU memory usage, and performance metrics are hardware-dependent and may vary across different system configurations. Although random seeds are set consistently across NumPy, PyTorch, and CUDA, full determinism cannot be guaranteed due to non-deterministic GPU operations.
