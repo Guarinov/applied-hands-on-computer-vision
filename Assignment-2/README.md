@@ -24,7 +24,7 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 
 ## 🗺️ Repository Map
 
-| Path | Purpose |
+| Path/File | Purpose |
 |------|---------|
 | `checkpoints/` | Contains the 9 best model checkpoints (`*.pt`), corresponding to the analyses in notebooks `02_*`, `03_*`, and `04_*`. Each checkpoint was selected based on lowest validation loss during training. |
 | `notebooks/` | Notebooks should be used **sequentially**, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality. |
