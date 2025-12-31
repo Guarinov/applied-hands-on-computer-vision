@@ -31,9 +31,6 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 | `results/` | Code for downloading data from Google Drive public links  |
 | `reproducibility/` | Lightweight scripts to reproduce key plots from the paper (e.g., Figure 4 and Figure 5b). |
 | `output/` | Generated figures (`.png`, `.html`) and result tables in CSV format. |
-| `tests/` | Unit tests (using PyTest) to ensure the reliability of core functionalities. |
-| `environment.yml / pyproject.toml` | Environment and dependency specifications using Conda & Poetry. |
-
 
 ## 🐍 Setup Guide: Micromamba Environment
 
