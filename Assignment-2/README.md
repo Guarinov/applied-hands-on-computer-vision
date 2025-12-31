@@ -1,6 +1,6 @@
 # CILP Assessment: Multimodal Learning
 
-## Setup Guide: Micromamba Environment
+## 🐍 Setup Guide: Micromamba Environment
 
 This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
 
@@ -47,7 +47,7 @@ If you are using VS Code or Jupyter Notebooks, ensure you select the handsoncv k
 python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
 ```
 
-## Data Preparation
+## 📥 Data Preparation
 
 Before starting the analysis, we need to download the dataset. This can be done by running the script:
 ```bash
@@ -61,13 +61,15 @@ Inside the script, define the variable `URL` to point to the Google Drive folder
   - LiDAR: `0001.npy`
 The data should be provided as a compressed .zip file for efficient downloading. During execution, the script creates a temporary directory to unzip the files, and the final dataset will be available in the following structure:
 
-```yaml
-dataset/
+```text
+data/assessment/
 ├── cubes/
 │   ├── rgb/
+│   │   ├── 0000.png
 │   │   ├── 0001.png
 │   │   └── ...
 │   └── lidar/
+│       ├── 0000.npy
 │       ├── 0001.npy
 │       └── ...
 └── spheres/
