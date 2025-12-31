@@ -8,11 +8,6 @@ This repository contains the following assignments:
 2. **CILP Assessment: Multimodal Learning - `Assignment-2`**: End-to-end study of multimodal fusion and cross-modal adaptation using synthetic RGB and LiDAR data for object classification.
 3. <tbd>
 
-## Installation
-```bash
-pip install -r requirements.txt
-```
-
 ## 📂 Repository Structure
 The project follows the "src-layout" to ensure shared logic is easily accessible across different assignments while keeping the root directory clean.
 
@@ -50,6 +45,8 @@ Applied-Hands-On-Computer-Vision/
     │   └── download_data.py
     └── subset.json          # .json file containing train/val splits, seed and metadata
 ```
+
+Please refer to the README.md of the individual `Assignment-*` folder for detailed summaries of results, reproducibility instructions, and code organization.
 
 ## 🐍 Setup Guide: Micromamba Environment
 
