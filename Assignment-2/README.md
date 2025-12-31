@@ -31,16 +31,6 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 | `results/` | Folder containing: `.png` screenshots of the **FiftyOne App** from notebook `01_*`; **W&B dashboards** corresponding to each notebook training; visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
 | `scripts/` | Code for downloading data from Google Drive public link. |
 
-## 📊 W\&B Projects Links
-
-The runs associated with the analyses in `notebooks/` are available at the following public link [W&B Projects](https://wandb.ai/handsoncv-research/projects), , under the username `guarino-vanessa-emanuela` for proper W&B access.
-
-The trainings corresponding to the different tasks in **Assignment 2** are organized into three projects, each containing runs with logged metrics such as first validation predictions, training and validation losses, accuracy, learning rate schedule, GPU memory usage, checkpoints, model parameters, and full configuration logs:
-
-1. **Fusion Architectures:** [handsoncv-fusion](https://wandb.ai/handsoncv-research/handsoncv-fusion?nw=nwuserguarinovanessaemanuela) – for the four fusion architectures implemented and compared.  
-2. **Downsampling Ablation:** [handsoncv-maxpoolvsstride](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela) – for comparing Max Pooling vs Strided Convolution in the `Embedder` class.  
-3. **Cross-Modal Fine-Tuning (CILP):** [handsoncv-cilp-assessment](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela) – for training components of the fine-tuned cross-modal classifier.
-
 ## 🐍 Setup Guide: Micromamba Environment
 
 This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
@@ -119,4 +109,17 @@ data/assessment/
     └── lidar/
         └── ...
 ```
+
+## 📊 W\&B Projects Links
+
+The runs associated with the analyses in `notebooks/` are available at the following public link [W&B Projects](https://wandb.ai/handsoncv-research/projects), , under the username `guarino-vanessa-emanuela` for proper W&B access.
+
+The trainings corresponding to the different tasks in **Assignment 2** are organized into three projects, each containing runs with logged metrics such as first validation predictions, training and validation losses, accuracy, learning rate schedule, GPU memory usage, checkpoints, model parameters, and full configuration logs:
+
+1. **Fusion Architectures:** [handsoncv-fusion](https://wandb.ai/handsoncv-research/handsoncv-fusion?nw=nwuserguarinovanessaemanuela) – for the four fusion architectures implemented and compared.  
+2. **Downsampling Ablation:** [handsoncv-maxpoolvsstride](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela) – for comparing Max Pooling vs Strided Convolution in the `Embedder` class.  
+3. **Cross-Modal Fine-Tuning (CILP):** [handsoncv-cilp-assessment](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela) – for training components of the fine-tuned cross-modal classifier.
+
+
+
 
