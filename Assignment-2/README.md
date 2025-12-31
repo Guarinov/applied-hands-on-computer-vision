@@ -22,6 +22,19 @@ This project explores multimodal machine learning using a synthetic dataset from
 
 This repository provides the full pipeline - **data preparation, multimodal training, fusion evaluation, and cross-modal fine-tuning** - as a hands-on benchmark for multimodal learning research.
 
+## Repository Map
+
+| Path | Purpose |
+|------|---------|
+| `checkpoints/` | Contains the 9 best model checkpoints (`*.pt`), corresponding to the analyses in notebooks `02_*`, `03_*`, and `04_*`. Each checkpoint was selected based on lowest validation loss during training. |
+| `notebooks/` | Notebooks should be used **sequentially**, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality.. |
+| `results/` |  |
+| `reproducibility/` | Lightweight scripts to reproduce key plots from the paper (e.g., Figure 4 and Figure 5b). |
+| `output/` | Generated figures (`.png`, `.html`) and result tables in CSV format. |
+| `tests/` | Unit tests (using PyTest) to ensure the reliability of core functionalities. |
+| `environment.yml / pyproject.toml` | Environment and dependency specifications using Conda & Poetry. |
+
+
 ## 🐍 Setup Guide: Micromamba Environment
 
 This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
