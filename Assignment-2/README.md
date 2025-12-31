@@ -20,7 +20,7 @@ This project explores multimodal machine learning using a synthetic dataset from
    - Contrastive pretraining of RGB and LiDAR embeddings using a CLIP-like approach (`EfficientCILPModel`).  
    - Project RGB embeddings into LiDAR space and fine-tune the pipeline to maximize RGB accuracy.
 
-This repository provides the full pipeline—**data preparation, multimodal training, fusion evaluation, and cross-modal fine-tuning**—as a hands-on benchmark for multimodal learning research.
+This repository provides the full pipeline - **data preparation, multimodal training, fusion evaluation, and cross-modal fine-tuning** - as a hands-on benchmark for multimodal learning research.
 
 ## 🐍 Setup Guide: Micromamba Environment
 
