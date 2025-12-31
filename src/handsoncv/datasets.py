@@ -74,11 +74,26 @@ def get_torch_xyza(lidar_depth, azimuth, zenith):
 class CILPFusionDataset(Dataset):
     def __init__(self, root_dir, sample_ids=None, transform=None):
         """
+        A Dataset for RGB-LiDAR fusion targeting binary classification (cube vs. sphere).
+    
+        Expected directory structure:
+            root_dir/
+                cubes/
+                    rgb/*.png, lidar/*.npy, azimuth.npy, zenith.npy
+                spheres/
+                    rgb/*.png, lidar/*.npy, azimuth.npy, zenith.npy
+                    
         Args:
             root_dir (str): Path to the 'assessment' folder.
             sample_ids (list, optional): Specific list of IDs (e.g., ['0001', '1421']). 
                                          If None, all IDs in root_dir are discovered.
             transform (callable, optional): Optional transform to be applied on RGB.
+            
+        Returns (via __getitem__):
+            rgb_img (Tensor): The transformed image (typically 4-channel RGBA).
+            lidar_xyza (Tensor): 4-channel LiDAR point data (XYZ + intensity/depth) 
+                                computed from depth maps and spherical coordinates.
+            label (LongTensor): Integer label (0 for cube, 1 for sphere).
         """
         self.root_dir = Path(os.path.expanduser(root_dir))
         self.samples = sample_ids
