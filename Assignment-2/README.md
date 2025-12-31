@@ -54,11 +54,11 @@ Before starting the analysis, we need to download the dataset. This can be done 
 python scripts/download_data.py
 ```
 
-Inside the script, define the variable `UR`L to point to the Google Drive folder containing the Nvidia Omniverse RGB and LiDAR data. The folder should be organized as follows:
+Inside the script, define the variable `URL` to point to the Google Drive folder containing the Nvidia Omniverse RGB and LiDAR data. The folder should be organized as follows:
 - Subfolders indicate the label type (e.g., cubes or spheres).
 - Each sample is co-registered with a unique ID:
-- - RGB: 0001.png
-- - LiDAR: 0001.npy
+  - RGB: `0001.png`
+  - LiDAR: `0001.npy`
 The data should be provided as a compressed .zip file for efficient downloading. During execution, the script creates a temporary directory to unzip the files, and the final dataset will be available in the following structure:
 
 ```yaml
