@@ -107,10 +107,10 @@ Below is a unified summary of all experiments, including the Fusion Exploration 
 
 | Notebook | Experiment / Architecture      | Val Loss | Accuracy\* (%) | Parameters | Sec / Epoch | GPU Mem (MB) |
 |--------------|------------------------------------|--------------|------------------|----------------|------------------|------------------|
-| 02           | Late Fusion                        | 0.01718      | 99.58            | 1,994,793      | 2.78             | 218.86           |
-| 02           | Int Fusion (Concat)                | 0.00384      | 99.92            | 4,517,805      | 2.71             | 276.53           |
-| 02           | Int Fusion (Add)                   | 0.00184      | 99.92            | 2,879,405      | 2.75             | 287.75           |
-| 02           | Int Fusion (Mul)                   | 0.00916      | 99.75            | 2,879,405      | 2.75             | 310.61           |
+| 02           | Late Fusion                        | 0.01719      | 99.58            | 1,994,793      | 2.87             | 218.86           |
+| 02           | Int Fusion (Concat)                | 0.00384      | 99.92            | 4,517,805      | 2.81             | 276.53           |
+| 02           | Int Fusion (Add)                   | 0.00184      | 99.92            | 2,879,405      | 2.82             | 287.75           |
+| 02           | Int Fusion (Mul)                   | 0.00916      | 99.75            | 2,879,405      | 2.84             | 310.61           |
 | 03           | MaxPool (Baseline)                 | 0.00197      | 99.92            | 2,879,405      | 2.81             | 234.52           |
 | 03           | Strided Convolution                | 0.01956      | 99.66            | 4,545,505      | 3.24             | 259.29          |
 | 04           | LiDAR Classifier                   | 0.00093      | 99.92            | –              | 2.83             | 125.49           |
