@@ -4,8 +4,8 @@ This repository contains the assessment results and shared codebase for the Hand
 
 This repository contains the following assignments:
 
-1. **MNIST Dataset Curation Lab**: Uses FiftyOne to audit label noise and implements a robust "I Don't Know" (IDK) classification strategy using LeNet-5 and Dynamic Focal Loss.
-2. tbd
+1. **MNIST Dataset Curation Lab - `Assignment-1`**: Uses FiftyOne to audit label noise and implements a robust "I Don't Know" (IDK) classification strategy using LeNet-5 and Dynamic Focal Loss.
+2. **CILP Assessment: Multimodal Learning - `Assignment-2`**: End-to-end study of multimodal fusion and cross-modal adaptation using synthetic RGB and LiDAR data for object classification.
 3. tbd
 
 ## Installation
@@ -21,7 +21,7 @@ Applied-Hands-On-Computer-Vision/
 ├── pyproject.toml           # Project metadata and dependencies
 ├── LICENSE                  # Project license
 ├── README.md                # Setup and usage instructions
-├├── src/
+├── src/
 │   └── handsoncv/                # Main package
 │       ├── __init__.py
 │       ├── shared/               # Code used in Assignments 2 & 3
