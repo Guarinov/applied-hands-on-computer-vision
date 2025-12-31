@@ -121,6 +121,23 @@ The trainings corresponding to the different tasks in **Assignment 2** are organ
 2. **Downsampling Ablation:** [handsoncv-maxpoolvsstride](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela) – for comparing Max Pooling vs Strided Convolution in the `Embedder` class.  
 3. **Cross-Modal Fine-Tuning (CILP):** [handsoncv-cilp-assessment](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela) – for training components of the fine-tuned cross-modal classifier.
 
+## 🧾 Summary of Results
 
+Below is a unified summary of all experiments, including the Fusion Exploration (Notebook `02_*`), Ablation Study (Notebook `03_*`), and the CILP / Cross-Modal Pipeline (Notebook `04_*`).
+
+| Notebook | Experiment / Architecture      | Val Loss | Accuracy\* (%) | Parameters | Sec / Epoch | GPU Mem (MB) |
+|--------------|------------------------------------|--------------|------------------|----------------|------------------|------------------|
+| 02           | Late Fusion                        | 0.01718      | 99.58            | 1,994,793      | 2.78             | 218.86           |
+| 02           | Int Fusion (Concat)                | 0.00384      | 99.92            | 4,517,805      | 2.71             | 276.53           |
+| 02           | Int Fusion (Add)                   | 0.00184      | 99.92            | 2,879,405      | 2.75             | 287.75           |
+| 02           | Int Fusion (Mul)                   | 0.00916      | 99.75            | 2,879,405      | 2.75             | 310.61           |
+| 03           | MaxPool (Baseline)                 | 0.00182      | 99.92            | 2,879,405      | 2.88             | 234.52           |
+| 03           | Strided Convolution                | 0.00038      | 100.0            | 4,545,505      | 2.82             | 262.97           |
+| 04           | LiDAR Classifier                   | 0.00093      | 99.92            | –              | 2.83             | 125.49           |
+| 04           | CILP (Contrastive Pretraining)     | 0.16239      | N/A*             | –              | 2.83             | 219.59           |
+| 04           | Cross-Modal Projector              | 0.27649      | N/A*             | –              | 2.76             | 261.32           |
+| 04           | RGB → LiDAR Fine-Tuning            | 0.08399      | 97.38            | –              | 2.70             | 234.05           |
+
+\* Accuracy is not applicable for contrastive and projection-only training stages.
 
 
