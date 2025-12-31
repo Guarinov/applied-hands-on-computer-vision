@@ -6,7 +6,7 @@ This repository contains the following assignments:
 
 1. **MNIST Dataset Curation Lab - `Assignment-1`**: Uses FiftyOne to audit label noise and implements a robust "I Don't Know" (IDK) classification strategy using LeNet-5 and Dynamic Focal Loss.
 2. **CILP Assessment: Multimodal Learning - `Assignment-2`**: End-to-end study of multimodal fusion and cross-modal adaptation using synthetic RGB and LiDAR data for object classification.
-3. tbd
+3. <tbd>
 
 ## Installation
 ```bash
