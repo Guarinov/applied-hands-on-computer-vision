@@ -11,23 +11,44 @@ from pathlib import Path
 The following functions are based on the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
 """
 
-def get_lidar_projections(lidar_depth, azimuth, zenith):
-    """Calculate X, Y, Z projections based on Nvidia/Omniverse LiDAR math."""
+def get_lidar_xyza(lidar_depth, azimuth, zenith, return_stacked=True):
+    """
+    Universal LiDAR projection function for both NumPy and PyTorch.
+    Args:
+        lidar_depth: (H, W) array or tensor of depth values.
+        azimuth: (H,) 1D array or tensor of horizontal angles.
+        zenith: (W,) 1D array or tensor of vertical angles.
+        return_stacked: If True, returns (4, H, W). If False, returns tuple of (x, y, z, a).
+        
+    Returns:
+        Depending on return_stacked: 
+        Stacked (4, H, W) object or tuple (x, y, z, mask).
+    """
+    # Auto-detect the backend
+    is_torch = torch.is_tensor(lidar_depth)
+    lib = torch if is_torch else np
+    
     # Create the projections using broadcasting
     # Azimuth: rows ([:, None]), Zenith: columns ([None, :])
-    x = lidar_depth * np.sin(-azimuth[:, None]) * np.cos(-zenith[None, :])
-    y = lidar_depth * np.cos(-azimuth[:, None]) * np.cos(-zenith[None, :])
-    z = lidar_depth * np.sin(-zenith[None, :])
+    x = lidar_depth * lib.sin(-azimuth[:, None]) * lib.cos(-zenith[None, :])
+    y = lidar_depth * lib.cos(-azimuth[:, None]) * lib.cos(-zenith[None, :])
+    z = lidar_depth * lib.sin(-zenith[None, :])
     
     # Create mask (a) for valid returns (max range 50.0 for this specific dataset; oterhwsie adjust accordingly)
     # This matches the 'a' in the Nvidia get_torch_xyza function
-    mask = (lidar_depth < 50.0).astype(np.float32)
+    mask = (lidar_depth < 50.0)
+    
+    # Cast mask to appropriate float type for the backend
+    mask = mask.to(lidar_depth.dtype) if is_torch else mask.astype(np.float32)
+    
+    if return_stacked:
+        return lib.stack([x, y, z, mask], dim=0 if is_torch else 0) # dim=0 for torch, axis=0 for numpy
     return x, y, z, mask
 
 def create_lidar_viz(npy_path, azimuth, zenith, output_path):
     """Converts a raw .npy LiDAR depth map into a colormapped .png for FiftyOne visualization."""
     data = np.load(npy_path)
-    x, y, z, mask = get_lidar_projections(data, azimuth, zenith)
+    x, y, z, mask = get_lidar_xyza(data, azimuth, zenith, return_stacked=False)
     
     # Filter points using the mask 'mask == 1' (matching Nvidia's 3D scatter logic)
     x_scatter = x[mask == 1]
@@ -60,16 +81,6 @@ def create_lidar_viz(npy_path, azimuth, zenith, output_path):
     plt.savefig(output_path, bbox_inches='tight', pad_inches=0, facecolor='black')
     plt.close(fig)
     return output_path
-
-def get_torch_xyza(lidar_depth, azimuth, zenith):
-    """Calculates 4-channel xyza from raw lidar depth."""
-    # Ensure correct shapes for broadcasting
-    x = lidar_depth * torch.sin(-azimuth[:, None]) * torch.cos(-zenith[None, :])
-    y = lidar_depth * torch.cos(-azimuth[:, None]) * torch.cos(-zenith[None, :])
-    z = lidar_depth * torch.sin(-zenith[None, :])
-    # Mask a: 1.0 for valid, 0.0 for background
-    a = torch.where(lidar_depth < 50.0, torch.ones_like(lidar_depth), torch.zeros_like(lidar_depth))
-    return torch.stack((x, y, z, a))
 
 class CILPFusionDataset(Dataset):
     def __init__(self, root_dir, sample_ids=None, transform=None):
@@ -159,7 +170,7 @@ class CILPFusionDataset(Dataset):
         lidar_depth = torch.from_numpy(lidar_npy).to(torch.float32)
         azi = self.angles[class_label]["azimuth"]
         zen = self.angles[class_label]["zenith"]
-        lidar_xyza = get_torch_xyza(lidar_depth, azi, zen)
+        lidar_xyza = get_lidar_xyza(lidar_depth, azi, zen)
         
         label = torch.tensor(self.label_map[class_label], dtype=torch.long)
         return rgb_img, lidar_xyza, label
