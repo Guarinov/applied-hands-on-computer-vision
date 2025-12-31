@@ -183,8 +183,6 @@ This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, 
   
 Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
 
----
-
 #### Notebook `04_*` (CILP and Cross-Modal Projection)
 - The initial configuration and dataloader setup must be executed.
 - Pretrained checkpoints for:
