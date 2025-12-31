@@ -22,23 +22,25 @@ Applied-Hands-On-Computer-Vision/
 ├── LICENSE                  # Project license
 ├── README.md                # Setup and usage instructions
 ├── src/
-│   └── handsoncv/                # Main package
-│       ├── __init__.py
-│       ├── shared/               # Code used in Assignments 2 & 3
-│       │   ├── __init__.py
-│       │   └── ...       
-│       └── assignment_02/        # Logic specific to Assignment 2
-│           ├── __init__.py
-│           ├── datasets.py        
-│           ├── models.py
-│           ├── training.py
-│           └── visualization.py       
-├── assignment_01/           # Folder for the first assessment
-│   ├──
+│   └── handsoncv/           # Main package
+│       ├── __init__.py      # Logic specific to Assignment 2      
+│       ├── datasets.py        
+│       ├── models.py
+│       ├── training.py
+│       ├── utils.py
+│       └── visualization.py       
+├── Assignment-01/           # Folder for the first assessment
+│   ├── requirements.txt
 │   └── image-dataset-curation-with-specialist-models-LeNet5.ipynb     
-└── assignment_02/           # Folder for the second assessment
-│   ├── 01_dataset_exploration.ipynb
-│   └── ...
+└── Assignment-02/           # Folder for the second assessment
+    ├── data/                # Local folder not synchronized with GitHub; reproducible with scripts/download_data.py
+    ├── checkpoints/         # Saved model weights
+    ├── notebooks/
+    │   ├── 01_dataset_exploration.ipynb  # Task 1
+    │   └── ...                            # Task 2+
+    ├── results/             # Figures and tables
+    └── scripts/             # Data download script
+        └── download_data.py
 ```
 
 ## 🐍 Setup Guide: Micromamba Environment
