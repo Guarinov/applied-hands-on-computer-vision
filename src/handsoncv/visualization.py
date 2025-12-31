@@ -1,10 +1,12 @@
 
+import os 
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.patches as patches
 import pandas as pd
 import numpy as np
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 """
 The following functions expand upon the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
@@ -67,11 +69,70 @@ def log_similarity_heatmap(logits):
 
     ax.set_xlabel("LiDAR")
     ax.set_ylabel("RGB")
-    
-    # ax.set_xticks([])
-    # ax.set_yticks([])
 
     return fig
+
+def plot_class_distribution(labels, counts, output_dir):
+    """
+    Creates a bar chart of class distributions per split with internal vertical labels 
+    and saves it to the specified directory.
+    
+    Args:
+        labels (list): String labels for each bar (e.g., ['train cube', ...]).
+        counts (list): Numerical values representing the count for each label.
+        output_dir (str): The full path including filename where the image will be saved (e.g., 'results/task1_label_split_distribution.png').
+    """
+    # Define colors
+    colors = [
+        (114/255, 144/255, 184/255, 1.0), # Dark Blue
+        (154/255, 181/255, 217/255, 1.0), # Light Blue
+        (184/255, 51/255, 51/255, 1.0),   # Dark Red
+        (217/255, 91/255, 91/255, 1.0)    # Light Red
+    ]
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    # Create the bars
+    bars = ax.bar(labels, counts, color=colors, width=0.8)
+
+    # Title and Layout Style
+    ax.set_title("class distribution per split", fontsize=20, pad=20, loc='right')
+    ax.set_ylabel("number of samples", fontsize=16)
+
+    # Styling axes to match reference style
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(2)
+    ax.spines['bottom'].set_linewidth(2)
+
+    # Grid lines (horizontal only, dashed)
+    ax.yaxis.grid(True, linestyle='--', color='gray', alpha=0.6)
+    ax.set_axisbelow(True) 
+
+    # Remove standard X-ticks to place labels inside the bars instead
+    ax.set_xticks([])
+    ax.tick_params(axis='y', labelsize=16)
+
+    # Add internal vertical labels
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width()/2., 
+            height * 0.05,                     
+            labels[i], 
+            ha='center', 
+            va='bottom', 
+            rotation=90, 
+            fontsize=24, 
+            color='black',                     
+            fontweight='normal'
+        )
+
+    plt.tight_layout()
+    
+    # Save
+    plt.savefig(output_dir, dpi=300, bbox_inches='tight', transparent=True) 
+    plt.show()
 
 def plot_table_task4_metrics(df, output_path):
     """
