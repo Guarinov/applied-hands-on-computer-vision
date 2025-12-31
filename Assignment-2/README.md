@@ -120,6 +120,8 @@ Below is a unified summary of all experiments, including the Fusion Exploration 
 
 \* Accuracy is not applicable for contrastive and projection-only training stages.
 
+In-depth analyses of the metrics are contained in the indicated notebooks.
+
 ## 🔁 Reproducing the Main Results
 
 Once the data have been downloaded and the `handsoncv` environment is installed, you are ready to reproduce all experiments.  
