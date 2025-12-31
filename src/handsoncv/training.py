@@ -11,30 +11,6 @@ from handsoncv.visualization import log_similarity_heatmap
 The following functions are based on the utils provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
 """
 
-def search_checkpoint_model(checkpoints_dir, instantiated_model, task_mode='lidar-only'):
-    checkpoint_path = os.path.join(checkpoints_dir, f"{task_mode}_best_model.pt")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Load checkpoint if it exists
-    if os.path.exists(checkpoint_path):
-        instantiated_model.load_state_dict(torch.load(checkpoint_path, map_location=device))
-        print(f"Loaded {task_mode} model from checkpoint: {checkpoint_path}")
-    else:
-        print(f"No checkpoint found at {checkpoint_path}. Using instantiated model as is.")
-
-    # Freeze parameters and set eval mode for cross-modal projector training
-    # if task_mode == 'contrastive':
-    if task_mode != 'projector':
-        for param in instantiated_model.parameters():
-            param.requires_grad = False
-        instantiated_model.eval()
-        print(f"        Using instantiated model in `.eval()` mode.")
-        return instantiated_model
-    else:
-        instantiated_model.train()
-        print(f"        Using instantiated model in `.train()` mode.")
-        return instantiated_model
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -87,6 +63,9 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats(device)
     
+    strategy = wandb.config.get('fusion_strategy', 'default')
+    ds_mode = wandb.config.get('downsample_mode', 'default')
+    
     for epoch in range(epochs):
         epoch_start = time.time()
         
@@ -130,7 +109,7 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
             
         # Validation Phase 
         model.eval()
-        val_loss, correct, total = 0, 0, 0
+        val_loss, correct, total, best_model_path = 0, 0, 0, None
         prediction_table = wandb.Table(columns=["Epoch", "Image", "Lidar_Mask", "True_Label", "Predicted_Label"])
         
         label_names = {0: "cube", 1: "sphere"}
@@ -190,11 +169,12 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
             if task_mode != "fusion":
                 checkpoint_name = task_mode 
             else: 
-                checkpoint_name = f"{task_mode}_{wandb.config['fusion_strategy']}_{wandb.config['downsample_mode']}"
+                checkpoint_name = f"{task_mode}_{strategy}_{ds_mode}"
             checkpoint_path = os.path.join(
                 check_dir, f"{checkpoint_name}_best_model.pt"
             )
             torch.save(model.state_dict(), checkpoint_path)
+            global_best_model_path = checkpoint_path # store checkpoint path for w&b artifact logging
             print(f"Saved new best model to {checkpoint_path}")
         
         duration = time.time() - epoch_start
@@ -243,6 +223,30 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
     total_time = time.time() - start_time
     avg_epoch_time = sum(epoch_times) / len(epoch_times)
     final_peak_gpu = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+    
+    if global_best_model_path and os.path.exists(global_best_model_path):
+        # Create a unique name for the artifact
+        artifact_name = f"{checkpoint_name}_{wandb.run.id}"
+
+        model_artifact = wandb.Artifact(
+            name=artifact_name, 
+            type='model',
+            description=f"""### Best model checkpoint
+            * task: {task_mode}
+            * strategy: {strategy}
+            * downsampling:** {ds_mode}""",
+            metadata={
+                "task_mode": task_mode,
+                "strategy": strategy,
+                "downsample_mode": ds_mode,
+                "val_loss": best_val_loss,
+                "params": params
+            }
+        )
+        # Add file to artifact and log it to w&b
+        model_artifact.add_file(global_best_model_path) 
+        wandb.log_artifact(model_artifact)
+        print(f"Successfully logged model artifact: {artifact_name}")
 
     return {
         "val_loss": avg_val_loss,
