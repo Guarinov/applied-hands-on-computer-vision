@@ -22,7 +22,7 @@ This project explores multimodal machine learning using a synthetic dataset from
 
 This repository provides the full pipeline - **data preparation, multimodal training, fusion evaluation, and cross-modal fine-tuning** - as a hands-on benchmark for multimodal learning research.
 
-## Repository Map
+## 🗺️  Repository Map
 
 | Path | Purpose |
 |------|---------|
@@ -31,6 +31,8 @@ This repository provides the full pipeline - **data preparation, multimodal trai
 | `results/` | Code for downloading data from Google Drive public links  |
 | `reproducibility/` | Lightweight scripts to reproduce key plots from the paper (e.g., Figure 4 and Figure 5b). |
 | `output/` | Generated figures (`.png`, `.html`) and result tables in CSV format. |
+
+## 🗺️  W\&B Projects Links
 
 ## 🐍 Setup Guide: Micromamba Environment
 
