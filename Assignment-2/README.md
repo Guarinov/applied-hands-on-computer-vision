@@ -70,10 +70,10 @@ Below is a unified summary of all experiments, including the Fusion Exploration 
 | 02           | Int Fusion (Mul)                   | 0.00916      | 99.75            | 2,879,405      | 2.84             | 310.61           |
 | 03           | MaxPool (Baseline)                 | 0.00197      | 99.92            | 2,879,405      | 2.81             | 234.52           |
 | 03           | Strided Convolution                | 0.01956      | 99.66            | 4,545,505      | 3.24             | 259.29          |
-| 04           | LiDAR Classifier                   | 0.00093      | 99.92            | –              | 2.83             | 125.49           |
-| 04           | CILP (Contrastive Pretraining)     | 0.16239      | N/A*             | –              | 2.83             | 219.59           |
-| 04           | Cross-Modal Projector              | 0.27649      | N/A*             | –              | 2.76             | 261.32           |
-| 04           | RGB → LiDAR Fine-Tuning            | 0.08399      | 97.38            | –              | 2.70             | 234.05           |
+| 04           | LiDAR Classifier                   | 0.00093      | 99.92            | 997,207        | 2.83             | 125.49           |
+| 04           | CILP (Contrastive Pretraining)     | 0.16239      | N/A*             | 2,045,757      | 2.83             | 219.59           |
+| 04           | Cross-Modal Projector              | 0.27649      | N/A*             | 8,867,968      | 2.76             | 261.32           |
+| 04           | RGB → LiDAR Fine-Tuning            | 0.08399      | 97.38            | 8,867,968      | 2.70             | 234.05           |
 
 \* Accuracy is not applicable for contrastive and projection-only training stages.
 
