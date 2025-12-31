@@ -24,7 +24,7 @@ Restart your terminal after installation.
 Invoke-Expression ((Invoke-WebRequest -Uri https://micro.mamba.pm/install.ps1).Content)
 ```
 
-### 2. Create and Activate the Environment 
+### 2. Create \& Activate the Environment 
 Install the project in editable mode to get all dependencies listed in pyproject.toml (including PyTorch ≥ 2.0, FiftyOne, etc.):
 ```bash
 micromamba create -n handsoncv python=3.11 -c conda-forge
