@@ -140,4 +140,54 @@ Below is a unified summary of all experiments, including the Fusion Exploration 
 
 \* Accuracy is not applicable for contrastive and projection-only training stages.
 
+## 🔁 Reproducing the Main Results
 
+Once the data have been downloaded and the `handsoncv` environment is installed, you are ready to reproduce all experiments.  
+Select the `handsoncv` kernel in each notebook and execute the cells sequentially.
+
+All experiments rely on the reusable functions and models provided in `src/`, which are installed in editable mode via `pip install -e .`.
+
+### Workflow Overview
+
+The notebooks are organized to follow a logical experimental progression, summarized below:
+
+| Notebook | Purpose | Notes |
+|--------|--------|-------|
+| `01_*` | Dataset exploration and split creation | Required only to regenerate dataset splits |
+| `02_*` | Multimodal fusion experiments | Late and intermediate fusion strategies |
+| `03_*` | Ablation study | Downsampling: MaxPool vs Strided Convolution |
+| `04_*` | Cross-modal fine-tuning (CILP) | RGB → LiDAR projection and adaptation |
+
+### Dataset Subsets and Reproducibility
+
+- Notebook `01_*` **must be run** if you want to recreate the dataset splits.  
+- The size of the subset can be controlled via the `PERCENTAGE_SUBSET` variable.  
+- The provided `subset.json` file stores **30% of the original dataset** and is sufficient to reproduce all reported results.
+
+To introduce different randomness in:
+- dataset sampling,
+- dataloader shuffling,
+- model initialization,
+
+modify the `SEED` variable consistently across notebooks.  
+This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
+
+### Running the Experiments
+
+- If the provided `subset.json` is used, notebooks `02_*`, `03_*`, and `04_*` can be run directly.
+- These notebooks follow a **theoretical progression** but can be executed **independently**.
+
+#### Notebook `04_*` (CILP and Cross-Modal Projection)
+
+- The initial configuration and dataloader setup must be executed.
+- Pretrained checkpoints for:
+  - the `Embedder`,
+  - the `CrossModalProjector`,
+  - and the `RGB2LiDARClassifier`
+  
+  can be loaded directly to **evaluate the final model** without retraining.
+- The same applies to the `CrossModalProjector` evaluation subsection.
+
+### Additional Notes
+
+Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
