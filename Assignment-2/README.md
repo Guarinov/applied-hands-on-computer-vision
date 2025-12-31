@@ -147,6 +147,8 @@ Select the `handsoncv` kernel in each notebook and execute the cells sequentiall
 
 All experiments rely on the reusable functions and models provided in `src/`, which are installed in editable mode via `pip install -e .`.
 
+---
+
 ### Workflow Overview
 
 The notebooks are organized to follow a logical experimental progression, summarized below:
@@ -157,6 +159,8 @@ The notebooks are organized to follow a logical experimental progression, summar
 | `02_*` | Multimodal fusion experiments | Late and intermediate fusion strategies |
 | `03_*` | Ablation study | Downsampling: MaxPool vs Strided Convolution |
 | `04_*` | Cross-modal fine-tuning (CILP) | RGB → LiDAR projection and adaptation |
+
+---
 
 ### Dataset Subsets and Reproducibility
 - Notebook `01_*` **must be run** if you want to recreate the dataset splits.  
@@ -171,11 +175,15 @@ To introduce different randomness in:
 modify the `SEED` variable consistently across notebooks.  
 This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
 
+--- 
+
 ### Running the Experiments
 - If the provided `subset.json` is used, notebooks `02_*`, `03_*`, and `04_*` can be run directly.
 - These notebooks follow a **theoretical progression** but can be executed **independently**.
   
 Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
+
+---
 
 #### Notebook `04_*` (CILP and Cross-Modal Projection)
 - The initial configuration and dataloader setup must be executed.
