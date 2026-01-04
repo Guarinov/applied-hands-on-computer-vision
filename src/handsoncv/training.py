@@ -3,8 +3,11 @@ import os
 import torch
 import time
 import wandb
+import clip
 import torch.nn.functional as F
 
+from torchvision.utils import make_grid, save_image
+from handsoncv.utils import sample_w 
 from handsoncv.visualization import log_similarity_heatmap
 
 """
@@ -113,6 +116,22 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
                             task_mode="fusion", epochs=10, scheduler=None, cilp_extras=None):
     """
     Universal loop for Task 3, 4, and 5.
+    
+    Args:
+        model (nn.Module): Trained classifier/`Embedder`/crros-modal projector for noise prediction.
+        train_loader (DataLoader): Training dataset loader.
+        val_loader (DataLoader): Validation dataset loader.
+        criterion (callable): Loss function used to compute the training and the validation loss.
+        optimizer (torch.optim.Optimizer): Optimizer for model updates.
+        device (str or torch.device): Device for training.
+        task_mode (str, optional): Task identifier (see options below).
+        epochs (int, optional): No. of training epochs.
+        scheduler (torch.optim.lr_scheduler, optional): Learning rate scheduler.
+        cilp_extras (dict, optional): Contains pretrained encoders if needed.
+        
+    Returns:
+        Dictionary containing metrics, loss and training variables 
+    
     task_mode options: 
       - 'fusion': RGB+Lidar classification for different fusion architectures/strategies (Task 3 & Task4)
       - 'lidar-only': Classification using only Lidar images (Task 5.1)
@@ -236,3 +255,127 @@ def train_fusion_cilp_model(model, train_loader, val_loader, optimizer, criterio
         "sec_per_epoch": avg_epoch_time,
         "gpu_mem_mb": final_peak_gpu
     }
+
+def get_context_mask(c, drop_prob, device):
+    """
+    Generate a context mask for classifier-free guidance. 
+    Each sample has a probability `drop_prob` to have its conditioning 
+    dropped (mask = 0) during training, for classifier-free guidance.
+    """
+    return torch.bernoulli(torch.ones(c.shape[0], 1).to(device) - drop_prob)
+
+def sample_flowers(unet_model, ddpm, clip_model, text_list, return_gen_single_img=False,
+                   device="cuda" if torch.cuda.is_available() else "cpu", results_dir=None):
+    """
+    Generate flower images conditioned on a list of text prompts using a trained UNet/DDPM.
+
+    Args:
+        unet_model (nn.Module): Trained UNet model for noise prediction.
+        ddpm (DDPM): DDPM utility with forward/reverse diffusion functions.
+        clip_model (CLIP model): CLIP model used to encode text prompts.
+        text_list (list of str): Text prompts to condition image generation.
+        return_gen_single_img (bool, optional): if True, saves and returns individual 
+            image tensors instead of batches.
+        device (str or torch.device): Device for computation.
+        results_dir (str, optional): Folder to save images if `return_gen_single_img=True`.
+
+    Returns:
+        If return_gen_single_img:
+            list of Tensors (1, C, H, W): each generated image saved and returned.
+        Else:
+            x_gen : Tensor (B, C, H, W)L final batch of generated images.
+            x_gen_store : Tensor (K, B, C, H, W): stored intermediate images for visualization.
+    """
+    text_tokens = clip.tokenize(text_list).to(device)
+    c = clip_model.encode_text(text_tokens).float()
+    input_size = (unet_model.img_ch, unet_model.img_size, unet_model.img_size)
+    # Sample images using classifier-free guidance
+    x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device)
+    
+    if return_gen_single_img:
+        img_list = []
+        for i, _ in enumerate(text_list):
+            img_tensor = x_gen[i:i+1] # [1, 3, 32, 32]
+            # Save as image file
+            img_name = f"gen_{i}.png"
+            img_path = os.path.join(results_dir, img_name)
+            # Rescale from [-1, 1] to [0, 1] for saving
+            save_image(img_tensor, img_path, normalize=True, value_range=(-1, 1))
+            img_list.append(img_tensor)
+        return img_list
+    return x_gen, x_gen_store
+
+def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, 
+                    drop_prob, save_dir, sample_save_dir, clip_model, text_list=None):
+    """
+    Train a DDPM model using classifier-free guidance and save best checkpoints.
+
+    Args:
+        model (nn.Module): UNet noise prediction model.
+        ddpm (DDPM): Diffusion utility for forward/reverse processes and loss.
+        train_loader (DataLoader): Training dataset loader.
+        val_loader (DataLoader): Validation dataset loader.
+        optimizer (torch.optim.Optimizer): Optimizer for model updates.
+        epochs (int): No. of training epochs.
+        device (str or torch.device): Device for training.
+        drop_prob (float): Probability to drop conditioning during training.
+        save_dir (str): Directory to save best model checkpoint.
+        sample_save_dir (str): Directory to save sampled images during training.
+        clip_model (CLIP model): Used to encode text prompts for sampling.
+        text_list (list of str, optional): Prompts for generating sample images 
+            at intervals.
+    """
+    best_val_loss = float('inf')
+    os.makedirs(sample_save_dir, exist_ok=True)
+    
+    # Helper for sampling during training
+    def sample_and_save(epoch_idx):
+        if text_list is None: return
+        model.eval()
+        with torch.no_grad():
+            x_gen, _ = sample_flowers(model, ddpm, clip_model, text_list, device=device)
+            
+            grid = make_grid(x_gen.cpu(), nrow=len(text_list), normalize=True, value_range=(-1, 1))
+            save_path = os.path.join(sample_save_dir, f"sample_ep{epoch_idx:02d}.png")
+            save_image(grid, save_path)
+            print(f"Saved samples to {save_path}")
+        model.train()
+    
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0
+        for step, (x, c) in enumerate(train_loader):
+            x, c = x.to(device), c.to(device)
+            optimizer.zero_grad()
+            
+            t = torch.randint(0, ddpm.T, (x.shape[0],), device=device).long()
+            c_mask = get_context_mask(c, drop_prob, device)
+            
+            loss = ddpm.get_loss(model, x, t, c, c_mask)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+        avg_train = train_loss / (step+1)
+        
+        # Validation
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for step, (x_v, c_v) in enumerate(val_loader):
+                x_v, c_v = x_v.to(device), c_v.to(device)
+                t_v = torch.randint(0, ddpm.T, (x_v.shape[0],), device=device).long()
+                c_mask_v = get_context_mask(c_v, 0, device) # No dropout in val
+                loss_v = ddpm.get_loss(model, x_v, t_v, c_v, c_mask_v)
+                val_loss += loss_v.item()
+        avg_val = val_loss / (step+1)
+        print(f"Epoch {epoch}: Train Loss: {avg_train:.4f} | Val Loss: {avg_val:.4f}")
+        
+        # Periodic Sampling
+        if epoch % 5 == 0 or epoch == epochs - 1:
+            sample_and_save(epoch)
+
+        # Save Best Checkpoint
+        if avg_val < best_val_loss:
+            best_val_loss = avg_val
+            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_model.pt"))
+            print(f"--- Saved new best model to {save_dir} ---")

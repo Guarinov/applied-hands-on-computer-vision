@@ -1,10 +1,14 @@
+import math
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+from einops.layers.torch import Rearrange
+
 """
-The following classes are based on the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
+The following classes are based on the notebooks provided for the Nvidia course 
+Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
 """
 
 class Embedder(nn.Module):
@@ -310,3 +314,227 @@ class RGB2LiDARClassifier(nn.Module):
         img_emb = self.rgb_enc(x) # RGB Encoder trained with contrastive pretraining 
         proj_lidar_emb = self.projector(img_emb) #Flattened to match [B, 200, 8, 8] or [B, 200, 4, 4] expected by LiDAR's classifier head
         return self.lidar_classifier(f=proj_lidar_emb)
+
+
+"""
+The following UNet components' functions are based on the modules provided for the Nvidia course
+Generative AI with Diffusion Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-08+V1 
+"""
+
+class GELUConvBlock(nn.Module):
+    """Conv2D → GroupNorm → GELU block.
+    
+    Input:  Tensor (B, in_ch, H, W)
+    Output: Tensor (B, out_ch, H, W)
+    """
+    def __init__(self, in_ch, out_ch, group_size):
+        super().__init__()
+        layers = [
+            nn.Conv2d(in_ch, out_ch, 3, 1, 1),
+            nn.GroupNorm(group_size, out_ch),
+            nn.GELU(),
+        ]
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+
+class RearrangePoolBlock(nn.Module):
+    """Downsampling block using spatial rearrangement followed by convolution.
+    
+    Input:  Tensor (B, C, H, W)
+    Output: Tensor (B, C, H/2, W/2)
+    """
+    def __init__(self, in_chs, group_size):
+        super().__init__()
+        self.rearrange = Rearrange("b c (h p1) (w p2) -> b (c p1 p2) h w", p1=2, p2=2)
+        self.conv = GELUConvBlock(4 * in_chs, in_chs, group_size)
+
+    def forward(self, x):
+        x = self.rearrange(x)
+        return self.conv(x)
+
+class DownBlock(nn.Module):
+    """UNet downsampling block with convolution and pooling.
+    
+    Input:  Tensor (B, in_chs, H, W)
+    Output: Tensor (B, out_chs, H/2, W/2)
+    """
+    def __init__(self, in_chs, out_chs, group_size):
+        super(DownBlock, self).__init__()
+        layers = [
+            GELUConvBlock(in_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            RearrangePoolBlock(out_chs, group_size),
+        ]
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x): 
+        return self.model(x)
+
+class UpBlock(nn.Module):
+    """UNet upsampling block with skip connections.
+    
+    Input:
+        x    : Tensor (B, in_chs, H, W)
+        skip : Tensor (B, out_chs, 2H, 2W)
+    Output:
+        Tensor (B, out_chs, 2H, 2)
+    """
+    def __init__(self, in_chs, out_chs, group_size):
+        super(UpBlock, self).__init__()
+        layers = [
+            nn.ConvTranspose2d(2 * in_chs, out_chs, 2, 2),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+        ]
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x, skip):
+        x = torch.cat((x, skip), 1) # Note: adjust the cat based on your specific UpBlock logic
+        x = self.model(x)
+        return x
+
+class SinusoidalPositionEmbedBlock(nn.Module):
+    """Generates sinusoidal timestep embeddings.
+    
+    Input:  Tensor (B,)
+    Output: Tensor (B, dim)
+    """
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, time):
+        device = time.device
+        half_dim = self.dim // 2
+        embeddings = math.log(10000) / (half_dim - 1)
+        embeddings = torch.exp(torch.arange(half_dim, device=device) * -embeddings)
+        embeddings = time[:, None] * embeddings[None, :]
+        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
+        return embeddings
+
+class EmbedBlock(nn.Module):
+    """Projects conditioning vectors into spatial feature maps.
+    
+    Input:  Tensor (B, input_dim)
+    Output: Tensor (B, emb_dim, 1, 1)
+    """
+    def __init__(self, input_dim, emb_dim):
+        super(EmbedBlock, self).__init__()
+        self.input_dim = input_dim
+        layers = [
+            nn.Linear(input_dim, emb_dim),
+            nn.GELU(),
+            nn.Linear(emb_dim, emb_dim),
+            nn.Unflatten(1, (emb_dim, 1, 1)),
+        ]
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = x.view(-1, self.input_dim)
+        return self.model(x)
+
+class ResidualConvBlock(nn.Module):
+    """Residual convolutional block with GELU activations.
+    
+    Input:  Tensor (B, in_chs, H, W)
+    Output: Tensor (B, out_chs, H, W)
+    """
+    def __init__(self, in_chs, out_chs, group_size):
+        super().__init__()
+        self.conv1 = GELUConvBlock(in_chs, out_chs, group_size)
+        self.conv2 = GELUConvBlock(out_chs, out_chs, group_size)
+
+    def forward(self, x):
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        out = x1 + x2
+        return out
+
+class UNet(nn.Module):
+    """
+    Conditional UNet architecture for diffusion models.
+    Based on NVIDIA's Generative AI with Diffusion Models course modules.
+    
+    Input:
+        x      : Noisy image tensor (B, img_ch, H, W)
+        t      : Diffusion timestep (B,)
+        c      : Conditioning vector (B, c_embed_dim)
+        c_mask : Conditioning mask (B, c_embed_dim)
+
+    Output:
+        Tensor (B, img_ch, H, W) – predicted noise
+    """
+    def __init__(self, T, img_ch, img_size, down_chs=(64, 64, 128), t_embed_dim=8, c_embed_dim=512):
+        super().__init__()
+        self.T = T
+        self.img_ch = img_ch
+        self.img_size = img_size
+        
+        up_chs = down_chs[::-1]
+        latent_image_size = img_size // 4
+        small_group_size = 8
+        big_group_size = 32
+        
+        # Inital convolution
+        self.down0 = ResidualConvBlock(img_ch, down_chs[0], small_group_size)
+        
+        # Downsample
+        self.down1 = DownBlock(down_chs[0], down_chs[1], big_group_size)
+        self.down2 = DownBlock(down_chs[1], down_chs[2], big_group_size)
+        self.to_vec = nn.Sequential(nn.Flatten(), nn.GELU())
+        
+        # Embeddings
+        self.dense_emb = nn.Sequential(
+            nn.Linear(down_chs[2] * latent_image_size**2, down_chs[1]),
+            nn.ReLU(),
+            nn.Linear(down_chs[1], down_chs[1]),
+            nn.ReLU(),
+            nn.Linear(down_chs[1], down_chs[2] * latent_image_size**2),
+            nn.ReLU(),
+        )
+        self.sinusoidaltime = SinusoidalPositionEmbedBlock(t_embed_dim)
+        self.t_emb1 = EmbedBlock(t_embed_dim, up_chs[0])
+        self.t_emb2 = EmbedBlock(t_embed_dim, up_chs[1])
+        self.c_embed1 = EmbedBlock(c_embed_dim, up_chs[0])
+        self.c_embed2 = EmbedBlock(c_embed_dim, up_chs[1])
+
+        # Upsample
+        self.up0 = nn.Sequential(
+            nn.Unflatten(1, (up_chs[0], latent_image_size, latent_image_size)),
+            GELUConvBlock(up_chs[0], up_chs[0], big_group_size),
+        )
+        self.up1 = UpBlock(up_chs[0], up_chs[1], big_group_size)
+        self.up2 = UpBlock(up_chs[1], up_chs[2], big_group_size)
+
+        # Match output channels and one last concatenation
+        self.out = nn.Sequential(
+            nn.Conv2d(2 * up_chs[-1], up_chs[-1], 3, 1, 1),
+            nn.GroupNorm(small_group_size, up_chs[-1]),
+            nn.ReLU(),
+            nn.Conv2d(up_chs[-1], img_ch, 3, 1, 1),
+        )
+
+    def forward(self, x, t, c, c_mask):
+        down0 = self.down0(x)
+        down1 = self.down1(down0)
+        down2 = self.down2(down1)
+        latent_vec = self.to_vec(down2)
+
+        latent_vec = self.dense_emb(latent_vec)
+        t = t.float() / self.T  # Convert from [0, T] to [0, 1]
+        t = self.sinusoidaltime(t)
+        t_emb1 = self.t_emb1(t)
+        t_emb2 = self.t_emb2(t)
+
+        c = c * c_mask
+        c_emb1 = self.c_embed1(c)
+        c_emb2 = self.c_embed2(c)
+
+        up0 = self.up0(latent_vec)
+        up1 = self.up1(c_emb1 * up0 + t_emb1, down2)
+        up2 = self.up2(c_emb2 * up1 + t_emb2, down1)
+        return self.out(torch.cat((up2, down0), 1))

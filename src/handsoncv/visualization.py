@@ -1,5 +1,7 @@
 
 import os 
+import torch
+import torchvision.transforms as transforms
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -9,7 +11,8 @@ import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 """
-The following functions expand upon the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
+The following functions expand upon the notebooks provided for the Nvidia course 
+Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
 """
 
 def hex_to_RGB(hex_str):
@@ -475,3 +478,12 @@ def plot_table_task3_metrics(df, output_path):
 
     plt.savefig(output_path, dpi=300, bbox_inches='tight', transparent=True)
     plt.show()
+
+def show_tensor_image(image):
+    reverse_transforms = transforms.Compose([
+        transforms.Lambda(lambda t: (t + 1) / 2),
+        transforms.Lambda(lambda t: torch.minimum(torch.tensor([1]), t)),
+        transforms.Lambda(lambda t: torch.maximum(torch.tensor([0]), t)),
+        transforms.ToPILImage(),
+    ])
+    plt.imshow(reverse_transforms(image[0].detach().cpu()))

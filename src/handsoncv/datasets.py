@@ -1,14 +1,18 @@
 import os 
+import csv
 import torch
+import glob
 import numpy as np
 import matplotlib.pyplot as plt
 
 from PIL import Image
 from torch.utils.data import Dataset
+import torchvision.transforms as transforms
 from pathlib import Path
 
 """
-The following functions are based on the notebooks provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
+The following functions are based on the notebooks provided for the Nvidia course 
+Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
 """
 
 def get_lidar_xyza(lidar_depth, azimuth, zenith, return_stacked=True):
@@ -174,3 +178,83 @@ class CILPFusionDataset(Dataset):
         
         label = torch.tensor(self.label_map[class_label], dtype=torch.long)
         return rgb_img, lidar_xyza, label
+
+"""
+The following functions are based on the modules provided for the Nvidia course
+Generative AI with Diffusion Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-08+V1 
+"""
+    
+def generate_clip_metadata(data_dir, save_path, clip_model, clip_preprocess, device):
+    """One-time function to create the CSV with CLIP embeddings."""
+    data_paths = glob.glob(f"{data_dir}/*/*.jpg")
+    with open(save_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for path in data_paths:
+            img = clip_preprocess(Image.open(path)).unsqueeze(0).to(device)
+            with torch.no_grad():
+                label = clip_model.encode_image(img)[0].cpu().tolist()
+            writer.writerow([path] + label)
+    print(f"Metadata saved to {save_path}")
+
+class TFflowersCLIPDataset(Dataset):
+    """
+    PyTorch Dataset for loading cropped TF Flowers images paired with CLIP image 
+    embeddings stored in a CSV file.
+
+    Expected directory structure:
+        data/cropped_flowers/
+            <label_1>/
+                <first_image_id>.jpg
+                <second_image_id>.jpg
+                ...
+            <label_2>/
+                <first_image_id>.jpg
+                <second_image_id>jpg
+                ...
+            ...
+
+    The CSV must contain one image per row with the following structure and is 
+    is generated using a CLIP image encoder:
+        image_path, emb_1, emb_2, ..., emb_D
+
+        where:
+        - `image_path`: Path to the corresponding image file
+        - `emb_1 ... emb_D`: CLIP image embedding values (D = embedding dimension)
+
+    In this project, the CSV file (e.g. `clip.csv`) is generated using a CLIP
+    image encoder, as shown below:
+    
+    Args:
+        csv_path (str): Path to the CSV file containing image paths and corresponding
+            CLIP image embeddings.
+        img_size (int, optional, default=32): Target spatial resolution to which images 
+            are resized.
+        transform (callable, optional): Optional transform to be applied on each image.
+
+    Returns (via __getitem__):
+        image (torch.FloatTensor): Transformed image of shape (3, img_size, img_size) 
+        embedding (torch.FloatTensor): CLIP image embedding
+    """
+    def __init__(self, csv_path, img_size=32, transform=None):
+        self.imgs_paths = []
+        self.labels = []
+        
+        with open(csv_path, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                self.imgs_paths.append(row[0])
+                self.labels.append([float(x) for x in row[1:]])
+        
+        self.labels = torch.tensor(self.labels, dtype=torch.float32)
+        self.transform = transform or transforms.Compose([
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda t: (t * 2) - 1)
+        ])
+
+    def __getitem__(self, idx):
+        img = Image.open(self.imgs_paths[idx]).convert("RGB")
+        return self.transform(img), self.labels[idx]
+
+    def __len__(self):
+        return len(self.imgs_paths)
