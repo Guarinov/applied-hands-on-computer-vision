@@ -14,50 +14,7 @@ This repository implements an end-to-end multimodal learning pipeline covering d
 
 ## 🐍 Setup Guide: Micromamba Environment
 
-This repository uses a virtual environment called `handsoncv`, created with **micromamba**, which is designed to be shared across the various assignments in this course. This guide will walk you through installing **micromamba** and setting up the `handsoncv` environment. This environment contains all the dependencies required to:
-
-- Use the functions in the `src` folder.
-- Run the analyses and experiments in the `notebooks` folder.
-
-### 1. Install Micromamba
-
-Micromamba is a tiny, fast, and standalone package manager that doesn't require a base Python installation.
-
-#### macOS / Linux
-Run the following in your terminal:
-```bash
-"${SHELL}" <(curl -L micro.mamba.pm/install.sh)
-```
-Restart your terminal after installation.
-
-#### Windows (PowerShell)
-
-```powershell
-Invoke-Expression ((Invoke-WebRequest -Uri https://micro.mamba.pm/install.ps1).Content)
-```
-
-### 2. Create \& Activate the Environment 
-Install the project in editable mode to get all dependencies listed in pyproject.toml (including PyTorch ≥ 2.0, FiftyOne, etc.):
-```bash
-micromamba create -n handsoncv python=3.11 -c conda-forge
-micromamba activate handsoncv
-```
-
-Install the project in editable mode to get all dependencies listed in `pyproject.toml` (including PyTorch ≥ 2.0, FiftyOne, etc.):
-```bash
-pip install -e.
-```
-
-### 2. Verify the Installation
-To ensure PyTorch and other key packages are installed correctly:
-```bash
-python -c "import torch; print(f'PyTorch version: {torch.__version__}'); import fiftyone as fo; print('FiftyOne installed')"
-```
-
-If you are using VS Code or Jupyter Notebooks, ensure you select the handsoncv kernel. Since ipykernel is included in the dependencies, you can register it manually if it doesn't show up:
-```bash
-python -m ipykernel install --user --name handsoncv --display-name "Python 3.11 (handsoncv)"
-```
+All dependencies and environment setup instructions are shared across assignments. Please, refer to the top-level [README.md](../README.md) for guidance on installing the `handsoncv` environment and required packages.
 
 ## 📥 Data Download for Analysis Reproducibility 
 
@@ -113,12 +70,14 @@ Below is a unified summary of all experiments, including the Fusion Exploration 
 | 02           | Int Fusion (Mul)                   | 0.00916      | 99.75            | 2,879,405      | 2.84             | 310.61           |
 | 03           | MaxPool (Baseline)                 | 0.00197      | 99.92            | 2,879,405      | 2.81             | 234.52           |
 | 03           | Strided Convolution                | 0.01956      | 99.66            | 4,545,505      | 3.24             | 259.29          |
-| 04           | LiDAR Classifier                   | 0.00093      | 99.92            | –              | 2.83             | 125.49           |
-| 04           | CILP (Contrastive Pretraining)     | 0.16239      | N/A*             | –              | 2.83             | 219.59           |
-| 04           | Cross-Modal Projector              | 0.27649      | N/A*             | –              | 2.76             | 261.32           |
-| 04           | RGB → LiDAR Fine-Tuning            | 0.08399      | 97.38            | –              | 2.70             | 234.05           |
+| 04           | LiDAR Classifier                   | 0.00093      | 99.92            | 997,207        | 2.83             | 125.49           |
+| 04           | CILP (Contrastive Pretraining)     | 0.16239      | N/A*             | 2,045,757      | 2.83             | 219.59           |
+| 04           | Cross-Modal Projector              | 0.27649      | N/A*             | 8,867,968      | 2.76             | 261.32           |
+| 04           | RGB → LiDAR Fine-Tuning            | 0.08399      | 97.38            | 8,867,968      | 2.70             | 234.05           |
 
 \* Accuracy is not applicable for contrastive and projection-only training stages.
+
+In-depth analyses of the metrics are contained in the indicated notebooks.
 
 ## 🔁 Reproducing the Main Results
 
@@ -168,5 +127,5 @@ Each notebook and the corresponding modules in `src/` include detailed inline do
 
 ---
 
-### ⚠️ Limitations
+## ⚠️ Limitations
 The dataset used in this project is synthetically generated using NVIDIA Omniverse and consists of simple geometric objects, which makes it suitable for controlled benchmarking but limits direct generalization to real-world RGB–LiDAR scenarios. For efficiency and reproducibility, experiments are conducted on a fixed subset (30\%) of the original dataset, and results may differ when training on the full data. Reported training times, GPU memory usage, and performance metrics are hardware-dependent and may vary across different system configurations. Although random seeds are set consistently across NumPy, PyTorch, and CUDA, full determinism cannot be guaranteed due to non-deterministic GPU operations.
