@@ -3,11 +3,10 @@ import os
 import torch
 import time
 import wandb
-import clip
 import torch.nn.functional as F
 
 from torchvision.utils import make_grid, save_image
-from handsoncv.utils import sample_w 
+from handsoncv.utils import sample_w, sample_flowers
 from handsoncv.visualization import log_similarity_heatmap
 
 """
@@ -264,47 +263,6 @@ def get_context_mask(c, drop_prob, device):
     """
     return torch.bernoulli(torch.ones(c.shape[0], 1).to(device) - drop_prob)
 
-def sample_flowers(unet_model, ddpm, clip_model, text_list, return_gen_single_img=False,
-                   device="cuda" if torch.cuda.is_available() else "cpu", results_dir=None):
-    """
-    Generate flower images conditioned on a list of text prompts using a trained UNet/DDPM.
-
-    Args:
-        unet_model (nn.Module): Trained UNet model for noise prediction.
-        ddpm (DDPM): DDPM utility with forward/reverse diffusion functions.
-        clip_model (CLIP model): CLIP model used to encode text prompts.
-        text_list (list of str): Text prompts to condition image generation.
-        return_gen_single_img (bool, optional): if True, saves and returns individual 
-            image tensors instead of batches.
-        device (str or torch.device): Device for computation.
-        results_dir (str, optional): Folder to save images if `return_gen_single_img=True`.
-
-    Returns:
-        If return_gen_single_img:
-            list of Tensors (1, C, H, W): each generated image saved and returned.
-        Else:
-            x_gen : Tensor (B, C, H, W)L final batch of generated images.
-            x_gen_store : Tensor (K, B, C, H, W): stored intermediate images for visualization.
-    """
-    text_tokens = clip.tokenize(text_list).to(device)
-    c = clip_model.encode_text(text_tokens).float()
-    input_size = (unet_model.img_ch, unet_model.img_size, unet_model.img_size)
-    # Sample images using classifier-free guidance
-    x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device)
-    
-    if return_gen_single_img:
-        img_list = []
-        for i, _ in enumerate(text_list):
-            img_tensor = x_gen[i:i+1] # [1, 3, 32, 32]
-            # Save as image file
-            img_name = f"gen_{i}.png"
-            img_path = os.path.join(results_dir, img_name)
-            # Rescale from [-1, 1] to [0, 1] for saving
-            save_image(img_tensor, img_path, normalize=True, value_range=(-1, 1))
-            img_list.append(img_tensor)
-        return img_list
-    return x_gen, x_gen_store
-
 def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, 
                     drop_prob, save_dir, sample_save_dir, clip_model, text_list=None):
     """
@@ -333,7 +291,8 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         if text_list is None: return
         model.eval()
         with torch.no_grad():
-            x_gen, _ = sample_flowers(model, ddpm, clip_model, text_list, device=device)
+            # Call centralized function to generate images via ddpm without embedding stroage
+            x_gen, _ = sample_flowers(model, ddpm, clip_model, text_list, device=device, results_dir=sample_save_dir)
             
             grid = make_grid(x_gen.cpu(), nrow=len(text_list), normalize=True, value_range=(-1, 1))
             save_path = os.path.join(sample_save_dir, f"sample_ep{epoch_idx:02d}.png")

@@ -3,8 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import os 
+import clip
 import torch.nn.functional as F
 
+from torchvision.utils import make_grid, save_image
 from handsoncv.visualization import show_tensor_image
 
 def get_binary_correct(output, target, threshold=0.5):
@@ -345,3 +347,57 @@ def sample_w(
 
     x_t_store = torch.stack(x_t_store)
     return x_t, x_t_store
+
+def sample_flowers(unet_model, ddpm, clip_model, text_list, device="cuda" if torch.cuda.is_available() else "cpu", 
+                   results_dir=None, embeddings_storage=None, w_tests=None):
+    """
+    Generate flower images via a trained UNet/DDPM conditioned on CLIP text embeddings.
+
+    Args:
+        unet_model (nn.Module): Trained UNet model for noise prediction.
+        ddpm (DDPM): DDPM utility with forward/reverse diffusion functions.
+        clip_model (CLIP model): CLIP model used to encode text prompts.
+        text_list (list of str): Text prompts to condition image generation.
+        return_gen_single_img (bool, optional): if True, saves and returns individual 
+            image tensors instead of batches.
+        device (str or torch.device): Device for computation.
+        results_dir (str, optional): Folder to save images if `return_gen_single_img=True`.
+        embeddings_storage (object, optional): Optional hook used to collect UNet embeddings. 
+            If provided, final forward pass at t=0 is executed to trigger embedding 
+            extraction.
+
+    Returns:
+        If return_gen_single_img:
+            None : either save individual image tensors or store bottlneck embeddings.
+        Else:
+            x_gen : Tensor (B, C, H, W)L final batch of generated images.
+            x_gen_store : Tensor (K, B, C, H, W): stored intermediate images for visualization.
+    """
+    unet_model.eval()
+    text_tokens = clip.tokenize(text_list).to(device)
+    
+    with torch.no_grad():
+        c = clip_model.encode_text(text_tokens).float()
+        input_size = (unet_model.img_ch, unet_model.img_size, unet_model.img_size)
+        # Sample images using classifier-free guidance
+        x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device, w_tests)
+        
+        # Extract Embeddings (If storage provided)
+        # We run one final pass on the clean generated images to get thebottleneck
+        if embeddings_storage is not None:
+            repeat_factor = x_gen.shape[0] // c.shape[0]
+            # One c for each x_gen given variable w_tests shape
+            c_repeated = c.repeat(repeat_factor, 1) # shape is [21, 512]
+            t_zero = torch.zeros(x_gen.shape[0], device=device).long()
+            c_mask = torch.ones(x_gen.shape[0], 1, device=device)
+            _ = unet_model(x_gen, t_zero, c_repeated, c_mask) 
+
+        # Save images if results_dir is provided
+        if results_dir:
+            os.makedirs(results_dir, exist_ok=True)
+            for i in range(len(text_list)):
+                # Save as image file
+                img_path = os.path.join(results_dir, f"gen_{i:03d}.png")
+                # Rescale from [-1, 1] to [0, 1] for saving
+                save_image(x_gen[i:i+1], img_path, normalize=True, value_range=(-1, 1))  # [1, 3, 32, 32]
+    return x_gen, x_gen_store
