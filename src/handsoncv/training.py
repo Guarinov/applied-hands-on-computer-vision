@@ -3,11 +3,14 @@ import os
 import torch
 import time
 import wandb
+import clip
+import torchvision.transforms as T
 import torch.nn.functional as F
 
 from torchvision.utils import make_grid, save_image
-from handsoncv.utils import sample_w, sample_flowers
+from handsoncv.utils import sample_flowers
 from handsoncv.visualization import log_similarity_heatmap
+from handsoncv.metrics import calculate_clip_score
 
 """
 The following functions are based on the utils provided for the Nvidia course Building AI Agents with Multimodal Models https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-17+V1
@@ -263,8 +266,8 @@ def get_context_mask(c, drop_prob, device):
     """
     return torch.bernoulli(torch.ones(c.shape[0], 1).to(device) - drop_prob)
 
-def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, 
-                    drop_prob, save_dir, sample_save_dir, clip_model, text_list=None):
+def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, drop_prob, 
+                    save_dir, sample_save_dir, clip_model, clip_preprocess, text_list=None, scheduler=None):
     """
     Train a DDPM model using classifier-free guidance and save best checkpoints.
 
@@ -280,11 +283,23 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         save_dir (str): Directory to save best model checkpoint.
         sample_save_dir (str): Directory to save sampled images during training.
         clip_model (CLIP model): Used to encode text prompts for sampling.
+        clip_preprocess (CLIP model): Used to encode image to extract CLIP embeddings 
         text_list (list of str, optional): Prompts for generating sample images 
             at intervals.
+        scheduler (torch.optim.lr_scheduler, optional): Learning rate scheduler.
     """
+    # Dual Checkpointing stats
     best_val_loss = float('inf')
+    best_clip_score = -1.0
     os.makedirs(sample_save_dir, exist_ok=True)
+    
+    # Static Logs for Wandb
+    params = count_parameters(model)
+    wandb.config.update({"number_of_parameters": params})
+    
+    epoch_times = []
+    
+    to_pil = T.ToPILImage()
     
     # Helper for sampling during training
     def sample_and_save(epoch_idx):
@@ -298,11 +313,14 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             save_path = os.path.join(sample_save_dir, f"sample_ep{epoch_idx:02d}.png")
             save_image(grid, save_path)
             print(f"Saved samples to {save_path}")
-        model.train()
+        return x_gen, grid
     
     for epoch in range(epochs):
+        epoch_start = time.time()
         model.train()
         train_loss = 0
+        
+        # Training Phase
         for step, (x, c) in enumerate(train_loader):
             x, c = x.to(device), c.to(device)
             optimizer.zero_grad()
@@ -312,13 +330,21 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             
             loss = ddpm.get_loss(model, x, t, c, c_mask)
             loss.backward()
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+            
             train_loss += loss.item()
-        avg_train = train_loss / (step+1)
+        avg_train_loss = train_loss / (step+1)
         
-        # Validation
+        # Validation Phase
         model.eval()
-        val_loss = 0
+        val_loss = 0 
+        avg_clip_score = None
+        
+        # Initialize Wandb Prediction Table
+        prediction_table = wandb.Table(columns=["epoch", "prompt", "guidance_weight", "image"])
+        
         with torch.no_grad():
             for step, (x_v, c_v) in enumerate(val_loader):
                 x_v, c_v = x_v.to(device), c_v.to(device)
@@ -326,15 +352,99 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
                 c_mask_v = get_context_mask(c_v, 0, device) # No dropout in val
                 loss_v = ddpm.get_loss(model, x_v, t_v, c_v, c_mask_v)
                 val_loss += loss_v.item()
-        avg_val = val_loss / (step+1)
-        print(f"Epoch {epoch}: Train Loss: {avg_train:.4f} | Val Loss: {avg_val:.4f}")
+        avg_val_loss = val_loss / (step+1)
+        print(f"Epoch {epoch}: Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
         
-        # Periodic Sampling
-        if epoch % 5 == 0 or epoch == epochs - 1:
-            sample_and_save(epoch)
-
-        # Save Best Checkpoint
-        if avg_val < best_val_loss:
-            best_val_loss = avg_val
-            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_model.pt"))
-            print(f"--- Saved new best model to {save_dir} ---")
+        # Periodic Sampling and CLIP Computation
+        if epoch % 5 == 0 or epoch == epochs - 1: 
+            x_gen, grid = sample_and_save(epoch)
+               
+            # Log predicted images onto W&B TABLE
+            w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0] # Assuming sample_w uses w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
+            num_prompts = len(text_list)
+            scores = []
+            
+            for i, w in enumerate(w_tests):
+                # We usually only care about alignment for positive guidance weights
+                if w <= 0: continue 
+                
+                for j, prompt in enumerate(text_list):
+                    idx = i * num_prompts + j
+                    # Convert tensor [-1, 1] to PIL Image [0, 255]
+                    img_t = (x_gen[idx].detach().cpu().clamp(-1, 1) + 1) / 2
+                    pil_img = to_pil(img_t)
+                    score = calculate_clip_score(
+                        pil_img, prompt, clip_model, clip_preprocess, clip.tokenize, device
+                    )
+                    scores.append(score)
+            
+            avg_clip_score = sum(scores) / len(scores) if scores else 0.0
+            
+            img_idx = 0
+            for w in w_tests:
+                for prompt in text_list:
+                    img = x_gen[img_idx]
+                    # Rescale [-1, 1] to [0, 1]
+                    img = (img.clamp(-1, 1) + 1) / 2
+                    # Add row to the table
+                    prediction_table.add_data(
+                        epoch, 
+                        prompt, 
+                        w, 
+                        wandb.Image(img.permute(1, 2, 0).cpu().numpy()) #, caption=f"{prompt} (w={w})")
+                    )
+                    img_idx += 1
+            # Log a "Media" version for quick viewing (separate from the table)
+            wandb_media= wandb.Image(grid, caption=f"Epoch {epoch} EMA (CLIP: {avg_clip_score:.4f})")
+    
+            # wandb.log({"clip_score": avg_clip_score})
+            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f} | CLIP Score: {avg_clip_score:.4f}")
+                        
+            # Set model onto .train() mode at the end of the validation predictions
+            print(f"Saved and logged samples for epoch {epoch}")
+            model.train()
+            
+        # Strategy A: Save Best Checkpoint based on Best Val Loss
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_model.pt")) # Save ema_model
+            print(f"--- Saved new best Val model to {save_dir} ---")
+        
+        # Strategy B: Save Best Checkpoint based on Best Clip Score
+        if avg_clip_score is not None and avg_clip_score > best_clip_score:
+            best_clip_score = avg_clip_score
+            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_clip_model.pt"))
+            print(f"--- Saved new best CLIP model to {save_dir} ---")
+        
+        # Scheduler step
+        if scheduler is not None:
+            # ReduceLROnPlateau needs the val_loss
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(avg_val_loss)
+            else:
+                scheduler.step()
+        
+        duration = time.time() - epoch_start
+        epoch_times.append(duration)
+        if torch.cuda.is_available() and "cuda" in str(device):
+            peak_mem_mb = torch.cuda.max_memory_allocated(device) / (1024 ** 2) # Get GPU Oeak Memory seen since Start of Training Loop
+        else:
+            peak_mem_mb = 0.0
+                
+        # Logging Dictionary Update
+        log_dict = {
+            "epoch": epoch,
+            "train_loss": avg_train_loss,
+            "val_loss": avg_val_loss,
+            "learning_rate": optimizer.param_groups[0]['lr'],
+            "epoch_time_sec": duration,
+            "peak_gpu_mem_mb": peak_mem_mb,
+            "sample_predictions": prediction_table,
+        }
+        if avg_clip_score is not None:
+            log_dict["clip_score"] = avg_clip_score
+        if wandb_media is not None:
+            log_dict["samples_grid"] = wandb_media
+            
+        wandb.log(log_dict)
+    

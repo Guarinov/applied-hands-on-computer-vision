@@ -23,7 +23,7 @@ class Evaluator:
             self.embeddings_storage[name] = output.detach().cpu()
         return hook
 
-    def run_full_evaluation(self, text_list, real_features=None):
+    def run_full_evaluation(self, text_list, real_dataloader=None):
         # Generate images and extract embeddings via sample_flowers
         # Pass self.embeddings_storage so the hook output is captured
         x_gen, _ = sample_flowers(
@@ -61,9 +61,12 @@ class Evaluator:
 
         # Calculate FID if real data features are provided
         fid_score = None
-        if real_features is not None:
+        if real_dataloader is not None:
             from torch.utils.data import DataLoader, TensorDataset
+            # Extract the 2048-dim Inception features from the real images (Input is [0, 1])
+            real_feats = extract_inception_features(real_dataloader, self.device, input_range_is_m1_1=False)
+            # Extract Generated Features (Input is [-1, 1] from DDPM)
             gen_loader = DataLoader(TensorDataset(x_gen), batch_size=len(text_list))
-            gen_feats = extract_inception_features(gen_loader, self.device)
-            fid_score = calculate_fid(real_features, gen_feats)
+            gen_feats = extract_inception_features(gen_loader, self.device, input_range_is_m1_1=False)
+            fid_score = calculate_fid(real_feats, gen_feats)
         return results, fid_score

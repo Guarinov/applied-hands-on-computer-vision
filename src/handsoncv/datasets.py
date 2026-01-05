@@ -235,7 +235,7 @@ class TFflowersCLIPDataset(Dataset):
         image (torch.FloatTensor): Transformed image of shape (3, img_size, img_size) 
         embedding (torch.FloatTensor): CLIP image embedding
     """
-    def __init__(self, csv_path, img_size=32, transform=None):
+    def __init__(self, csv_path, img_size=32, transform=True):
         self.imgs_paths = []
         self.labels = []
         
@@ -246,15 +246,13 @@ class TFflowersCLIPDataset(Dataset):
                 self.labels.append([float(x) for x in row[1:]])
         
         self.labels = torch.tensor(self.labels, dtype=torch.float32)
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((img_size, img_size)),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda t: (t * 2) - 1)
-        ])
+        self.transform = transform
 
     def __getitem__(self, idx):
         img = Image.open(self.imgs_paths[idx]).convert("RGB")
-        return self.transform(img), self.labels[idx]
+        if self.transform:
+            img = self.transform(img)
+        return img, self.labels[idx]
 
     def __len__(self):
         return len(self.imgs_paths)
