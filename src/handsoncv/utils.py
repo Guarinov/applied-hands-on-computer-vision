@@ -301,7 +301,7 @@ def sample_w(
         x_t_store  : Tensor (K, N, C, H, W) – intermediate samples
     """
     if w_tests is None:
-        w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
+        w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 5.0]
     # Preprase "grid of samples" with w for rows and c for columns
     n_samples = len(w_tests) * len(c)
 

@@ -30,7 +30,7 @@ class Evaluator:
             self.model, self.ddpm, self.clip_model, text_list, 
             self.device, results_dir=self.results_dir, 
             embeddings_storage=self.embeddings_storage,
-            w_tests=[2.0]
+            w_tests=[5.0]
         )
 
         # Retrieve the extracted bottleneck embeddings
@@ -63,10 +63,10 @@ class Evaluator:
         fid_score = None
         if real_dataloader is not None:
             from torch.utils.data import DataLoader, TensorDataset
-            # Extract the 2048-dim Inception features from the real images (Input is [0, 1])
-            real_feats = extract_inception_features(real_dataloader, self.device, input_range_is_m1_1=False)
+            # Extract the 2048-dim Inception features from the real images (Input is [-1, 1])
+            real_feats = extract_inception_features(real_dataloader, self.device)
             # Extract Generated Features (Input is [-1, 1] from DDPM)
-            gen_loader = DataLoader(TensorDataset(x_gen), batch_size=len(text_list))
-            gen_feats = extract_inception_features(gen_loader, self.device, input_range_is_m1_1=False)
+            gen_loader = DataLoader(TensorDataset(x_gen), batch_size=32) #batch_size=len(text_list))
+            gen_feats = extract_inception_features(gen_loader, self.device)
             fid_score = calculate_fid(real_feats, gen_feats)
         return results, fid_score

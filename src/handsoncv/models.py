@@ -372,7 +372,7 @@ class DownBlock(nn.Module):
     def forward(self, x): 
         return self.model(x)
 
-class UpBlock(nn.Module):
+class OldUpBlock(nn.Module):
     """UNet upsampling block with skip connections.
     
     Input:
@@ -382,7 +382,7 @@ class UpBlock(nn.Module):
         Tensor (B, out_chs, 2H, 2)
     """
     def __init__(self, in_chs, out_chs, group_size):
-        super(UpBlock, self).__init__()
+        super(OldUpBlock, self).__init__()
         layers = [
             nn.ConvTranspose2d(2 * in_chs, out_chs, 2, 2),
             GELUConvBlock(out_chs, out_chs, group_size),
@@ -396,6 +396,33 @@ class UpBlock(nn.Module):
         x = torch.cat((x, skip), 1) # Note: adjust the cat based on your specific UpBlock logic
         x = self.model(x)
         return x
+
+class UpBlock(nn.Module):
+    """UNet upsampling block with upsampling interpolatoin, convolution and skip connections.
+    
+    Input:
+        x    : Tensor (B, in_chs, H, W)
+        skip : Tensor (B, out_chs, 2H, 2W)
+    Output:
+        Tensor (B, out_chs, 2H, 2)
+    """
+    def __init__(self, in_chs, skip_chs, out_chs, group_size):
+        super().__init__()
+        # Instead of nn.ConvTranspose2d:
+        self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.conv_in = nn.Conv2d(in_chs + skip_chs, out_chs, 3, padding=1)
+        self.model = nn.Sequential(
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+            GELUConvBlock(out_chs, out_chs, group_size),
+        )
+
+    def forward(self, x, skip):
+        x = self.upsample(x)
+        x = torch.cat((x, skip), 1)
+        x = self.conv_in(x)
+        return self.model(x)
 
 class SinusoidalPositionEmbedBlock(nn.Module):
     """Generates sinusoidal timestep embeddings.
@@ -485,17 +512,18 @@ class UNet(nn.Module):
         # Downsample
         self.down1 = DownBlock(down_chs[0], down_chs[1], big_group_size)
         self.down2 = DownBlock(down_chs[1], down_chs[2], big_group_size)
-        self.to_vec = nn.Sequential(nn.Flatten(), nn.GELU())
+        self.mid_block = ResidualConvBlock(down_chs[2], down_chs[2], big_group_size)
+        # self.to_vec = nn.Sequential(nn.Flatten(), nn.GELU())
         
-        # Embeddings
-        self.dense_emb = nn.Sequential(
-            nn.Linear(down_chs[2] * latent_image_size**2, down_chs[1]),
-            nn.ReLU(),
-            nn.Linear(down_chs[1], down_chs[1]),
-            nn.ReLU(),
-            nn.Linear(down_chs[1], down_chs[2] * latent_image_size**2),
-            nn.ReLU(),
-        )
+        # # Embeddings
+        # self.dense_emb = nn.Sequential(
+        #     nn.Linear(down_chs[2] * latent_image_size**2, down_chs[1]),
+        #     nn.ReLU(),
+        #     nn.Linear(down_chs[1], down_chs[1]),
+        #     nn.ReLU(),
+        #     nn.Linear(down_chs[1], down_chs[2] * latent_image_size**2),
+        #     nn.ReLU(),
+        # )
         self.sinusoidaltime = SinusoidalPositionEmbedBlock(t_embed_dim)
         self.t_emb1 = EmbedBlock(t_embed_dim, up_chs[0])
         self.t_emb2 = EmbedBlock(t_embed_dim, up_chs[1])
@@ -504,11 +532,17 @@ class UNet(nn.Module):
 
         # Upsample
         self.up0 = nn.Sequential(
-            nn.Unflatten(1, (up_chs[0], latent_image_size, latent_image_size)),
+            # nn.Unflatten(1, (up_chs[0], latent_image_size, latent_image_size)),
             GELUConvBlock(up_chs[0], up_chs[0], big_group_size),
+            # GELUConvBlock(up_chs[0], up_chs[0], big_group_size) # optional
         )
-        self.up1 = UpBlock(up_chs[0], up_chs[1], big_group_size)
-        self.up2 = UpBlock(up_chs[1], up_chs[2], big_group_size)
+        # self.up1 = UpBlock(up_chs[0], up_chs[1], big_group_size)
+        # self.up2 = UpBlock(up_chs[1], up_chs[2], big_group_size)
+        
+        # up1: in=512, skip=256, out=256
+        self.up1 = UpBlock(up_chs[0], down_chs[1], up_chs[1], big_group_size)
+        # up2: in=256, skip=256, out=256
+        self.up2 = UpBlock(up_chs[1], down_chs[0], up_chs[2], big_group_size)
 
         # Match output channels and one last concatenation
         self.out = nn.Sequential(
@@ -522,9 +556,12 @@ class UNet(nn.Module):
         down0 = self.down0(x)
         down1 = self.down1(down0)
         down2 = self.down2(down1)
-        latent_vec = self.to_vec(down2)
+        # latent_vec = self.to_vec(down2)
 
-        latent_vec = self.dense_emb(latent_vec)
+        # latent_vec = self.dense_emb(latent_vec)
+        # Instead of flattening to a vector, we process the 8x8 grid directly
+        latent_vec = self.mid_block(down2) # [B, 512, 8, 8]
+        
         t = t.float() / self.T  # Convert from [0, T] to [0, 1]
         t = self.sinusoidaltime(t)
         t_emb1 = self.t_emb1(t)
@@ -535,6 +572,12 @@ class UNet(nn.Module):
         c_emb2 = self.c_embed2(c)
 
         up0 = self.up0(latent_vec)
-        up1 = self.up1(c_emb1 * up0 + t_emb1, down2)
-        up2 = self.up2(c_emb2 * up1 + t_emb2, down1)
+        # up1 = self.up1(c_emb1 * up0 + t_emb1, down2)
+        # up2 = self.up2(c_emb2 * up1 + t_emb2, down1)
+        
+        # up1: Upsamples 8x8 -> 16x16. 
+        up1 = self.up1(c_emb1 * up0 + t_emb1, down1) 
+        # up2: Upsamples 16x16 -> 32x32. 
+        up2 = self.up2(c_emb2 * up1 + t_emb2, down0) 
+        # Final merge [256 + 256 = 512 channels]
         return self.out(torch.cat((up2, down0), 1))

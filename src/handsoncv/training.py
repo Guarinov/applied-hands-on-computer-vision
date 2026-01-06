@@ -4,6 +4,7 @@ import torch
 import time
 import wandb
 import clip
+import copy
 import torchvision.transforms as T
 import torch.nn.functional as F
 
@@ -288,6 +289,12 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             at intervals.
         scheduler (torch.optim.lr_scheduler, optional): Learning rate scheduler.
     """
+    # Initialize EMA model as used in DDPM models (see https://github.com/hojonathanho/diffusion/blob/master/diffusion_tf/utils.py)
+    # ema_model = copy.deepcopy(model).to(device) # not to track gradients
+    # ema_model.eval()
+    # for param in ema_model.parameters():
+    #     param.requires_grad = False
+   
     # Dual Checkpointing stats
     best_val_loss = float('inf')
     best_clip_score = -1.0
@@ -298,15 +305,15 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
     wandb.config.update({"number_of_parameters": params})
     
     epoch_times = []
-    
     to_pil = T.ToPILImage()
     
     # Helper for sampling during training
     def sample_and_save(epoch_idx):
         if text_list is None: return
         model.eval()
+        # ema_model.eval() # Use EMA model for sampling
         with torch.no_grad():
-            # Call centralized function to generate images via ddpm without embedding stroage
+            # Call centralized function to generate images via smoothed model
             x_gen, _ = sample_flowers(model, ddpm, clip_model, text_list, device=device, results_dir=sample_save_dir)
             
             grid = make_grid(x_gen.cpu(), nrow=len(text_list), normalize=True, value_range=(-1, 1))
@@ -315,6 +322,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             print(f"Saved samples to {save_path}")
         return x_gen, grid
     
+    global_step = 0
     for epoch in range(epochs):
         epoch_start = time.time()
         model.train()
@@ -322,6 +330,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         
         # Training Phase
         for step, (x, c) in enumerate(train_loader):
+            global_step += 1
             x, c = x.to(device), c.to(device)
             optimizer.zero_grad()
             
@@ -334,10 +343,18 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             
+            # Update EMA model at every step
+            # Formula: shadow_params = shadow_params * decay + online_params * (1 - decay)
+            # with torch.no_grad():
+            #     current_decay = min(0.99, (1 + global_step) / (10 + global_step))
+            #     for online_param, shadow_param in zip(model.parameters(), model.parameters()):
+            #         shadow_param.data.mul_(current_decay).add_(online_param.data, alpha=1 - current_decay)
+            
             train_loss += loss.item()
         avg_train_loss = train_loss / (step+1)
         
         # Validation Phase
+        # ema_model.eval() 
         model.eval()
         val_loss = 0 
         avg_clip_score = None
@@ -350,6 +367,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
                 x_v, c_v = x_v.to(device), c_v.to(device)
                 t_v = torch.randint(0, ddpm.T, (x_v.shape[0],), device=device).long()
                 c_mask_v = get_context_mask(c_v, 0, device) # No dropout in val
+                 # Use EMA model to check if it is generalizing well
                 loss_v = ddpm.get_loss(model, x_v, t_v, c_v, c_mask_v)
                 val_loss += loss_v.item()
         avg_val_loss = val_loss / (step+1)

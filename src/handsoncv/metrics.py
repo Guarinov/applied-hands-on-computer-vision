@@ -5,14 +5,12 @@ import torchvision.models as models
 from scipy.linalg import sqrtm
 from PIL import Image
 
-def extract_inception_features(dataloader, device, input_range_is_m1_1=False):
+def extract_inception_features(dataloader, device):
     """Extracts 2048-dim features from the InceptionV3 pooling layer.
     
     Args:
         dataloader: loader for images
         device: cpu/cuda
-        input_range_is_m1_1: Set to True for generated images ([-1, 1]), 
-                             Set to False for standard dataset images ([0, 1]).
     """
     # Use weights='IMAGENET1K_V1' for modern torchvision
     model = models.inception_v3(weights='IMAGENET1K_V1', transform_input=False).to(device)
@@ -29,21 +27,21 @@ def extract_inception_features(dataloader, device, input_range_is_m1_1=False):
     with torch.no_grad():
         for batch in dataloader:
             # Batch is [B, 3, H, W], assume in range [-1, 1]
-            x = batch[0].to(device)
+            x = batch[0].to(device)   # x ∈ [-1, 1]
             
-            # Rescale to [0, 1] and resize for Inception
-            if input_range_is_m1_1:
-                x = (x + 1) / 2.0 
-            x = torch.nn.functional.interpolate(x, size=(299, 299), mode='bilinear')
+            # Resize
+            x = torch.nn.functional.interpolate(
+                x, size=(299, 299), mode='bilinear', align_corners=False
+            )
             
-            # Normalize to [-1, 1] (The FID Standard); equivalent to transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-            x = (x - 0.5) / 0.5 
+            # Normalize from [-1, 1] → [0, 1] (The FID Standard)
+            x = (x + 1.0) / 2.0
             
-            # # Normalize as per ImageNet
-            # # Note: Apply manual normalization because transforms.Compose usually works on PIL
-            # x[:, 0] = (x[:, 0] - 0.485) / 0.229
-            # x[:, 1] = (x[:, 1] - 0.456) / 0.224
-            # x[:, 2] = (x[:, 2] - 0.406) / 0.225
+            # Normalize as per ImageNet
+            # Note: Apply manual normalization because transforms.Compose usually works on PIL
+            x[:, 0] = (x[:, 0] - 0.485) / 0.229
+            x[:, 1] = (x[:, 1] - 0.456) / 0.224
+            x[:, 2] = (x[:, 2] - 0.406) / 0.225
             
             feat = model(x)
             features.append(feat.cpu().numpy())
