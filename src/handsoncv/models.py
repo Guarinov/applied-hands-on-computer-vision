@@ -372,17 +372,17 @@ class DownBlock(nn.Module):
     def forward(self, x): 
         return self.model(x)
 
-class OldUpBlock(nn.Module):
+class TransposedUpBlock(nn.Module):
     """UNet upsampling block with skip connections.
     
     Input:
         x    : Tensor (B, in_chs, H, W)
         skip : Tensor (B, out_chs, 2H, 2W)
     Output:
-        Tensor (B, out_chs, 2H, 2)
+        Tensor (B, out_chs, 2H, 2W)
     """
     def __init__(self, in_chs, out_chs, group_size):
-        super(OldUpBlock, self).__init__()
+        super(TransposedUpBlock, self).__init__()
         layers = [
             nn.ConvTranspose2d(2 * in_chs, out_chs, 2, 2),
             GELUConvBlock(out_chs, out_chs, group_size),
@@ -398,13 +398,14 @@ class OldUpBlock(nn.Module):
         return x
 
 class UpBlock(nn.Module):
-    """UNet upsampling block with upsampling interpolatoin, convolution and skip connections.
+    """UNet upsampling block with nearest-neighbor upsampling, convolution 
+    and skip connections.
     
     Input:
-        x    : Tensor (B, in_chs, H, W)
-        skip : Tensor (B, out_chs, 2H, 2W)
+        x    : Low-resolution Tensor (B, in_chs, H, W)
+        skip : Skip connection Tensor (B, skip_chs, 2H, 2W)
     Output:
-        Tensor (B, out_chs, 2H, 2)
+        Upsampled Tensor (B, out_chs, 2H, 2W)
     """
     def __init__(self, in_chs, skip_chs, out_chs, group_size):
         super().__init__()
@@ -481,6 +482,33 @@ class ResidualConvBlock(nn.Module):
         out = x1 + x2
         return out
 
+# Self-Attention layer for the 8x8 bottleneck
+class SelfAttention(nn.Module):
+    """
+    Self-attention block applied at the UNet bottleneck. Performs multi-head self-attention 
+    over spatial locations (H × W tokens) to model long-range dependencies.
+
+    Input:
+        x (Tensor): Feature map of shape (B, C, H, W)
+
+    Output:
+        Tensor: Feature map of shape (B, C, H, W) with attention applied
+    """
+    def __init__(self, in_chs, num_heads=4):
+        super().__init__()
+        self.mha = nn.MultiheadAttention(in_chs, num_heads=num_heads, batch_first=True)
+        self.ln = nn.LayerNorm([in_chs])
+
+    def forward(self, x):
+        # x: [B, C, H, W] -> [B, H*W, C]
+        B, C, H, W = x.shape
+        x_flat = x.view(B, C, -1).permute(0, 2, 1)
+        x_norm = self.ln(x_flat) # LayerNorm + self-attention
+        attn_out, _ = self.mha(x_norm, x_norm, x_norm)
+        # out = attn_out + x_flat # Residual connection
+        out = (attn_out * 0.5) + x_flat # Residual connection
+        return out.permute(0, 2, 1).view(B, C, H, W)
+
 class UNet(nn.Module):
     """
     Conditional UNet architecture for diffusion models.
@@ -495,7 +523,8 @@ class UNet(nn.Module):
     Output:
         Tensor (B, img_ch, H, W) – predicted noise
     """
-    def __init__(self, T, img_ch, img_size, down_chs=(64, 64, 128), t_embed_dim=8, c_embed_dim=512):
+    def __init__(self, T, img_ch, img_size, down_chs=(64, 64, 128), 
+                 t_embed_dim=8, c_embed_dim=512, self_attention=False, num_heads=1):
         super().__init__()
         self.T = T
         self.img_ch = img_ch
@@ -511,8 +540,17 @@ class UNet(nn.Module):
         
         # Downsample
         self.down1 = DownBlock(down_chs[0], down_chs[1], big_group_size)
-        self.down2 = DownBlock(down_chs[1], down_chs[2], big_group_size)
-        self.mid_block = ResidualConvBlock(down_chs[2], down_chs[2], big_group_size)
+        self.down2 = DownBlock(down_chs[1], down_chs[2], big_group_size)  
+        if self_attention:  
+            self.mid_block = nn.Sequential(
+                ResidualConvBlock(down_chs[2], down_chs[2], big_group_size),
+                SelfAttention(down_chs[2], num_heads=num_heads), 
+                ResidualConvBlock(down_chs[2], down_chs[2], big_group_size)
+            ) 
+        else:
+            self.mid_block = ResidualConvBlock(down_chs[2], down_chs[2], big_group_size) 
+        
+        # Old Structure
         # self.to_vec = nn.Sequential(nn.Flatten(), nn.GELU())
         
         # # Embeddings

@@ -185,7 +185,11 @@ Generative AI with Diffusion Models https://learn.nvidia.com/courses/course-deta
 """
     
 def generate_clip_metadata(data_dir, save_path, clip_model, clip_preprocess, device):
-    """One-time function to create the CSV with CLIP embeddings."""
+    """One-time function to create the CSV with CLIP embeddings.
+    
+    Each row in the CSV contains:
+        [image_path, clip_embedding_0, clip_embedding_1, ..., clip_embedding_N]
+    """
     data_paths = glob.glob(f"{data_dir}/*/*.jpg")
     with open(save_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
