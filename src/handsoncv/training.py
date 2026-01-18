@@ -431,7 +431,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         # Strategy B: Save Best Checkpoint based on Best Clip Score
         if avg_clip_score is not None and avg_clip_score > best_clip_score:
             best_clip_score = avg_clip_score
-            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_clip_model.pt"))
+            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_clip_best_model.pt"))
             print(f"--- Saved new best CLIP model to {save_dir} ---")
         
         # Scheduler step
