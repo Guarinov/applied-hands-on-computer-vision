@@ -108,3 +108,35 @@ def calculate_fid(real_embeddings, gen_embeddings):
     # Final FID calculation
     fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
     return fid
+
+def calculate_idk_metrics(correct_scores, incorrect_scores):
+    thresholds = np.linspace(0.1, 1, 100)
+    accuracies = []
+    coverages = []
+    
+    total_samples = len(correct_scores) + len(incorrect_scores)
+    
+    for t in thresholds:
+        # Which samples do we keep?
+        accepted_correct = sum(1 for c in correct_scores if c >= t)
+        accepted_incorrect = sum(1 for c in incorrect_scores if c >= t)
+        
+        total_accepted = accepted_correct + accepted_incorrect
+        
+        if total_accepted > 0:
+            acc = accepted_correct / total_accepted
+            cov = total_accepted / total_samples
+        else:
+            acc = 1.0 # If we accept nothing, we aren't "wrong"
+            cov = 0.0
+            
+        accuracies.append(acc)
+        coverages.append(cov)
+        
+    return thresholds, accuracies, coverages
+
+def find_optimal_threshold(thresholds, accuracies, target_accuracy=0.9985):
+    for t, acc in zip(thresholds, accuracies):
+        if acc >= target_accuracy:
+            return t
+    return thresholds[-1]

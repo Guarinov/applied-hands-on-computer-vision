@@ -9,7 +9,7 @@ import torchvision.transforms as T
 import torch.nn.functional as F
 
 from torchvision.utils import make_grid, save_image
-from handsoncv.utils import sample_flowers
+from handsoncv.utils import sample_flowers, sample_mnist
 from handsoncv.visualization import log_similarity_heatmap
 from handsoncv.metrics import calculate_clip_score
 
@@ -267,10 +267,11 @@ def get_context_mask(c, drop_prob, device):
     """
     return torch.bernoulli(torch.ones(c.shape[0], 1).to(device) - drop_prob)
 
-def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, drop_prob, 
-                    save_dir, sample_save_dir, clip_model, clip_preprocess, text_list=None, scheduler=None):
+def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, drop_prob, save_dir, 
+                    sample_save_dir, clip_model=None, clip_preprocess=None, cond_list=None, scheduler=None):
     """
     Train a DDPM model using classifier-free guidance and save best checkpoints.
+    Unified training loop for MNIST (labels) or Flowers (CLIP)
 
     Args:
         model (nn.Module): UNet noise prediction model.
@@ -283,10 +284,12 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         drop_prob (float): Probability to drop conditioning during training.
         save_dir (str): Directory to save best model checkpoint.
         sample_save_dir (str): Directory to save sampled images during training.
-        clip_model (CLIP model): Used to encode text prompts for sampling.
-        clip_preprocess (CLIP model): Used to encode image to extract CLIP embeddings 
-        text_list (list of str, optional): Prompts for generating sample images 
-            at intervals.
+        clip_model (CLIP model, optional): Used to encode text prompts for sampling 
+            for text-based conditioning.
+        clip_preprocess (CLIP model, optional): Used to encode image to extract CLIP embeddings 
+            for text-based conditioning.
+        cond_list (list of str or list of int, optional): Prompts or classes integers
+            for generating sample images at intervals with text-based conditioning.
         scheduler (torch.optim.lr_scheduler, optional): Learning rate scheduler.
     """
     # Initialize EMA model as used in DDPM models (see https://github.com/hojonathanho/diffusion/blob/master/diffusion_tf/utils.py)
@@ -300,6 +303,12 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
     best_clip_score = -1.0
     os.makedirs(sample_save_dir, exist_ok=True)
     
+    # Determine if we are in CLIP/Text mode or Label/MNIST mode
+    is_text_mode = False
+    if cond_list is not None and len(cond_list) > 0:
+        if isinstance(cond_list[0], str) and clip_model is not None:
+            is_text_mode = True
+    
     # Static Logs for Wandb
     params = count_parameters(model)
     wandb.config.update({"number_of_parameters": params})
@@ -309,14 +318,17 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
     
     # Helper for sampling during training
     def sample_and_save(epoch_idx):
-        if text_list is None: return
         model.eval()
         # ema_model.eval() # Use EMA model for sampling
         with torch.no_grad():
             # Call centralized function to generate images via smoothed model
-            x_gen, _ = sample_flowers(model, ddpm, clip_model, text_list, device=device, results_dir=sample_save_dir)
-            
-            grid = make_grid(x_gen.cpu(), nrow=len(text_list), normalize=True, value_range=(-1, 1))
+            if is_text_mode:
+                x_gen, _ = sample_flowers(model, ddpm, clip_model, cond_list, device=device, results_dir=sample_save_dir) # Flower/CLIP mode
+            else:
+                w_tests = [0.0, 1.0, 2.0]
+                x_gen, _ = sample_mnist(model, ddpm, cond_list, device=device, results_dir=sample_save_dir, w_tests=w_tests) # MNIST/Label mode (w_tests=[0.0, 1.0])
+                        
+            grid = make_grid(x_gen.cpu(), nrow=len(cond_list), normalize=True, value_range=(-1, 1))
             save_path = os.path.join(sample_save_dir, f"sample_ep{epoch_idx:02d}.png")
             save_image(grid, save_path)
             print(f"Saved samples to {save_path}")
@@ -335,6 +347,9 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             optimizer.zero_grad()
             
             t = torch.randint(0, ddpm.T, (x.shape[0],), device=device).long()
+            if not is_text_mode:
+                c = F.one_hot(c, num_classes=model.c_embed_dim).float() 
+            # Context mask for Classifier-Free Guidance
             c_mask = get_context_mask(c, drop_prob, device)
             
             loss = ddpm.get_loss(model, x, t, c, c_mask)
@@ -360,12 +375,15 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         avg_clip_score = None
         
         # Initialize Wandb Prediction Table
-        prediction_table = wandb.Table(columns=["epoch", "prompt", "guidance_weight", "image"])
+        cond_column_name = "Prompt" if is_text_mode else "Class_Label"
+        prediction_table = wandb.Table(columns=["epoch", cond_column_name, "guidance_weight", "image"])
         
         with torch.no_grad():
             for step, (x_v, c_v) in enumerate(val_loader):
                 x_v, c_v = x_v.to(device), c_v.to(device)
                 t_v = torch.randint(0, ddpm.T, (x_v.shape[0],), device=device).long()
+                if not is_text_mode:
+                    c_v = F.one_hot(c_v, num_classes=model.c_embed_dim).float() 
                 c_mask_v = get_context_mask(c_v, 0, device) # No dropout in val
                  # Use EMA model to check if it is generalizing well
                 loss_v = ddpm.get_loss(model, x_v, t_v, c_v, c_mask_v)
@@ -376,47 +394,54 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         # Periodic Sampling and CLIP Computation
         if epoch % 5 == 0 or epoch == epochs - 1: 
             x_gen, grid = sample_and_save(epoch)
-               
+            
             # Log predicted images onto W&B TABLE
-            w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0] # Assuming sample_w uses w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
-            num_prompts = len(text_list)
-            scores = []
+            w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 5.0] if is_text_mode else [0.0, 1.0, 2.0]  # Assuming sample_w uses w_tests
+            num_conds = len(cond_list)
             
-            for i, w in enumerate(w_tests):
-                # We usually only care about alignment for positive guidance weights
-                if w <= 0: continue 
+            # Conditional CLIP Scoring 
+            if is_text_mode:
+                scores = []
+                for i, w in enumerate(w_tests):
+                    # We usually only care about alignment for positive guidance weights
+                    if w <= 0: continue 
+                    
+                    for j, prompt in enumerate(cond_list):
+                        idx = i * num_conds + j
+                        # Convert tensor [-1, 1] to PIL Image [0, 255]
+                        img_t = (x_gen[idx].detach().cpu().clamp(-1, 1) + 1) / 2
+                        pil_img = to_pil(img_t)
+                        score = calculate_clip_score(
+                            pil_img, prompt, clip_model, clip_preprocess, clip.tokenize, device
+                        )
+                        scores.append(score)
                 
-                for j, prompt in enumerate(text_list):
-                    idx = i * num_prompts + j
-                    # Convert tensor [-1, 1] to PIL Image [0, 255]
-                    img_t = (x_gen[idx].detach().cpu().clamp(-1, 1) + 1) / 2
-                    pil_img = to_pil(img_t)
-                    score = calculate_clip_score(
-                        pil_img, prompt, clip_model, clip_preprocess, clip.tokenize, device
-                    )
-                    scores.append(score)
-            
-            avg_clip_score = sum(scores) / len(scores) if scores else 0.0
+                avg_clip_score = sum(scores) / len(scores) if scores else 0.0
             
             img_idx = 0
             for w in w_tests:
-                for prompt in text_list:
+                for cond in cond_list:
                     img = x_gen[img_idx]
-                    # Rescale [-1, 1] to [0, 1]
+                    # Rescale [-1, 1] to [0, 1] for Wandb
                     img = (img.clamp(-1, 1) + 1) / 2
                     # Add row to the table
                     prediction_table.add_data(
                         epoch, 
-                        prompt, 
+                        str(cond), # Could be "sunflower" or "0"
                         w, 
                         wandb.Image(img.permute(1, 2, 0).cpu().numpy()) #, caption=f"{prompt} (w={w})")
                     )
                     img_idx += 1
-            # Log a "Media" version for quick viewing (separate from the table)
-            wandb_media= wandb.Image(grid, caption=f"Epoch {epoch} EMA (CLIP: {avg_clip_score:.4f})")
     
             # wandb.log({"clip_score": avg_clip_score})
-            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f} | CLIP Score: {avg_clip_score:.4f}")
+            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}")
+            if avg_clip_score is not None:
+                caption_str += f"| CLIP Score: {avg_clip_score:.4f})"
+            
+            # Log a "Media" version for quick viewing (separate from the table)
+            wandb_media= wandb.Image(grid, caption=f"Epoch {epoch}")
+            if avg_clip_score is not None:
+                caption_str += f" (CLIP: {avg_clip_score:.4f})"
                         
             # Set model onto .train() mode at the end of the validation predictions
             print(f"Saved and logged samples for epoch {epoch}")
@@ -425,14 +450,16 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         # Strategy A: Save Best Checkpoint based on Best Val Loss
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_best_model.pt")) # Save ema_model
+            prefix = "ddpm_unet" if is_text_mode else "ddpm_unet_mnist"
+            torch.save(model.state_dict(), os.path.join(save_dir, f"{prefix}_best_model.pt")) # Save ema_model
             print(f"--- Saved new best Val model to {save_dir} ---")
         
         # Strategy B: Save Best Checkpoint based on Best Clip Score
-        if avg_clip_score is not None and avg_clip_score > best_clip_score:
-            best_clip_score = avg_clip_score
-            torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_clip_best_model.pt"))
-            print(f"--- Saved new best CLIP model to {save_dir} ---")
+        if is_text_mode and avg_clip_score is not None:
+            if avg_clip_score is not None and avg_clip_score > best_clip_score:
+                best_clip_score = avg_clip_score
+                torch.save(model.state_dict(), os.path.join(save_dir, "ddpm_unet_clip_best_model.pt"))
+                print(f"--- Saved new best CLIP model to {save_dir} ---")
         
         # Scheduler step
         if scheduler is not None:
@@ -457,8 +484,12 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             "learning_rate": optimizer.param_groups[0]['lr'],
             "epoch_time_sec": duration,
             "peak_gpu_mem_mb": peak_mem_mb,
-            "sample_predictions": prediction_table,
+            # "sample_predictions": prediction_table,
         }
+        if is_text_mode: 
+            log_dict["sample_prediction"] = prediction_table
+        else: 
+            log_dict["mnist_sample_prediction"] = prediction_table
         if avg_clip_score is not None:
             log_dict["clip_score"] = avg_clip_score
         if wandb_media is not None:

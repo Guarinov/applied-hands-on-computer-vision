@@ -529,6 +529,7 @@ class UNet(nn.Module):
         self.T = T
         self.img_ch = img_ch
         self.img_size = img_size
+        self.c_embed_dim = c_embed_dim
         
         up_chs = down_chs[::-1]
         latent_image_size = img_size // 4

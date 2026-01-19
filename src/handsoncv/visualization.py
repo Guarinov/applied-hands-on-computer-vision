@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import seaborn as sns
 import pandas as pd
 import numpy as np
 
@@ -487,3 +488,125 @@ def show_tensor_image(image):
         transforms.ToPILImage(),
     ])
     plt.imshow(reverse_transforms(image[0].detach().cpu()))
+
+def plot_bonus_tsk_confidence_distribution(model, loader, device):
+    model.eval()
+    correct_confidences = []
+    incorrect_confidences = []
+
+    with torch.no_grad():
+        for data, target in loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            
+            # Get actual probabilities
+            probs = torch.exp(output) 
+            conf, pred = torch.max(probs, dim=1)
+            
+            correct_mask = pred.eq(target)
+            correct_confidences.extend(conf[correct_mask].cpu().numpy())
+            incorrect_confidences.extend(conf[~correct_mask].cpu().numpy())
+
+    # Styling Block
+    sns.set_style("white") # White background
+    plt.rcParams['figure.dpi'] = 100
+    
+    fig, ax = plt.subplots(figsize=(5, 4))
+    
+    # Define colors (Light Blue and Soft Pink/Purple)
+    color_correct = "#A0C4FF" 
+    color_incorrect = "#FFC2D1"
+
+    # Plot Correct Predictions
+    sns.histplot(correct_confidences, bins=30, kde=True, color=color_correct, 
+                 label='Correct', stat="density", alpha=0.8, edgecolor=None)
+    
+    # Plot Incorrect Predictions
+    sns.histplot(incorrect_confidences, bins=30, kde=False, color=color_incorrect, 
+                 label='Incorrect', stat="density", alpha=0.8, edgecolor=None)
+
+    # Styling the KDE line of Correct Predictions (making it thicker and darker)
+    for line in ax.lines:
+        line.set_linewidth(2)
+        line.set_color("#333333") # Dark charcoal gray
+        line.set_alpha(0.8)
+
+    # Specify fontsizes of Title and Axes
+    ax.set_xlabel("Confidence", fontsize=16, labelpad=10)
+    ax.set_ylabel("Density", fontsize=16, labelpad=10)
+    
+    # Thick axes lines and removing top/right spines
+    sns.despine() # Removes top and right border
+    ax.spines['left'].set_linewidth(2)
+    ax.spines['bottom'].set_linewidth(2)
+    
+    # Adjust tick thickness and size
+    ax.tick_params(direction='out', length=6, width=2, labelsize=14)
+
+    plt.legend(frameon=True, fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+    return correct_confidences, incorrect_confidences
+
+def find_stability_limit(coverages, accuracies):
+    """Finds the 'elbow' point furthest from the line connecting start and end."""
+    x = np.array(coverages)
+    y = np.array(accuracies)
+    
+    # Define the start and end points of the curve
+    p1 = np.array([x[0], y[0]])
+    p2 = np.array([x[-1], y[-1]])
+    
+    # Calculate the perpendicular distance from each point to the line p1-p2
+    # Formula: distance = |(y2-y1)x0 - (x2-x1)y0 + x2y1 - y2x1| / sqrt((y2-y1)^2 + (x2-x1)^2)
+    numerator = np.abs((p2[1]-p1[1])*x - (p2[0]-p1[0])*y + p2[0]*p1[1] - p2[1]*p1[0])
+    denominator = np.sqrt((p2[1]-p1[1])**2 + (p2[0]-p1[0])**2)
+    
+    distances = numerator / (denominator + 1e-10) # 1e-10 prevents divide by zero
+    
+    # The 'knee' or 'elbow' is the point with the maximum distance
+    return np.argmax(distances)
+
+def plot_bonus_tsk_acc_coverage_curve(coverages, accuracies):
+    # Find point where accuracy starts dropping 
+    knee_idx = find_stability_limit(coverages, accuracies)
+    knee_acc = accuracies[knee_idx]
+    knee_cov = coverages[knee_idx]
+
+    # Styling Block
+    sns.set_style("white")
+    plt.rcParams['figure.dpi'] = 100
+    
+    fig, ax = plt.subplots(figsize=(5, 4))
+    
+    # Plot the line 
+    ax.plot(coverages, accuracies, color="#16867B", linewidth=3, label='Model Performance')
+    
+    # Draw the charcoal "cliff" line
+    ax.axhline(y=knee_acc, color="#333333", linestyle='--', linewidth=2, alpha=0.7)
+    
+    # Mark the intersection point (the 'elbow')
+    ax.scatter(knee_cov, knee_acc, color="#333333", s=50, zorder=5)
+
+    # Adjust fontsize of Title and Axes
+    ax.set_xlabel("Coverage (Fraction of data accepted)", fontsize=15, labelpad=10)
+    ax.set_ylabel("Acc. on Accepted Samples", fontsize=15, labelpad=10)
+    
+    # Remove top and right spines
+    sns.despine()
+    
+    # Make the left and bottom axes thicker
+    ax.spines['left'].set_linewidth(2.5)
+    ax.spines['bottom'].set_linewidth(2.5)
+    
+    # Adjust tick thickness and size to match
+    ax.tick_params(direction='out', length=6, width=2.5, labelsize=13)
+    
+    # Add a subtle grid only for the Y axis to help read accuracy levels
+    # ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+    
+    return knee_acc, knee_cov

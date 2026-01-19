@@ -65,8 +65,6 @@ def evaluate_model(model, val_loader, criterion, device, run_final_assessment=Fa
     avg_loss = running_loss / total
     accuracy = total_correct / total        
     final_acc_pct = accuracy * 100
-    # avg_loss = running_loss / total_samples
-    # accuracy = total_correct / total_samples
     
     if run_final_assessment:
         if final_acc_pct > 95.0:
@@ -76,7 +74,38 @@ def evaluate_model(model, val_loader, criterion, device, run_final_assessment=Fa
     else:
         print(f"Validation Results - Avg Loss: {avg_loss:.4f} | Accuracy: {accuracy:.4f}")
     
-    # return avg_loss, accuracy
+def _test_mnist_classifier(model, device, test_loader):
+    """
+    Evaluate a trained MNIST classifier on a test dataset. Function provided 
+    in the Nvidia course Generative AI with Diffusion Models 
+    https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-08+V1 
+
+    This function runs the model in evaluation mode, computes the average
+    negative log-likelihood loss over the entire test set, and reports
+    classification accuracy.
+
+    Args:
+        model (torch.nn.Module): Trained neural network for MNIST classification.
+            The model is expected to output log-probabilities for each class.
+        device (str/torch.device): Device on which computation is performed (e.g., CPU or CUDA).
+        test_loader (torch.utils.data.DataLoader): DataLoader providing test dataset batches as (data, target) pairs.
+    """
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
 
 def search_checkpoint_model(checkpoints_dir, instantiated_model, task_mode='lidar-only'):
     """
@@ -281,7 +310,7 @@ class DDPM:
 
 @torch.no_grad()
 def sample_w(
-    model, ddpm, input_size, T, c, device, w_tests=None, store_freq=10
+    model, ddpm, input_size, T, c, device, w_tests=None, store_freq=10,
 ):
     """
     Classifier-free guidance sampling with varying guidance weights.
@@ -400,4 +429,36 @@ def sample_flowers(unet_model, ddpm, clip_model, text_list, device="cuda" if tor
                 img_path = os.path.join(results_dir, f"gen_{i:03d}.png")
                 # Rescale from [-1, 1] to [0, 1] for saving
                 save_image(x_gen[i:i+1], img_path, normalize=True, value_range=(-1, 1))  # [1, 3, 32, 32]
+    return x_gen, x_gen_store
+
+def sample_mnist(unet_model, ddpm, labels, device="cuda", results_dir=None, w_tests=None):
+    """
+    Generate MNIST images conditioned on class labels (0-9).
+    """
+    unet_model.eval()
+    
+    # If no labels provided, generate one of each digit
+    if labels is None:
+        labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    
+    # If labels is a list, convert to tensor
+    c = torch.tensor(labels).to(device).long() 
+    
+    # F.one_hot returns Long by default, we must add .float()
+    c = F.one_hot(c, num_classes=10).float() 
+    
+    input_size = (unet_model.img_ch, unet_model.img_size, unet_model.img_size)
+    
+    with torch.no_grad():
+        # Use the existing classifier-free guidance sampler
+        # Note: sample_w handles the batch doubling and w weights
+        x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device, w_tests)
+
+        if results_dir:
+            os.makedirs(results_dir, exist_ok=True)
+            for i in range(x_gen.shape[0]):
+                img_path = os.path.join(results_dir, f"gen_{i:03d}.png")
+                # Normalize=True with value_range=(-1,1) maps [-1, 1] -> [0, 1]
+                save_image(x_gen[i:i+1], img_path, normalize=True, value_range=(-1, 1))
+                
     return x_gen, x_gen_store
