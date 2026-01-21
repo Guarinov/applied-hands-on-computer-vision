@@ -220,7 +220,9 @@ class Evaluator:
         is_text_mode = isinstance(cond_list, list) and len(cond_list) > 0 and isinstance(cond_list[0], str)
         os.makedirs(self.results_dir, exist_ok=True)                   
         
-        # Generate images and extract embeddings via sample_flowers if is_text_mode or sample_mnist
+        #########################################################################
+        # Image Generation & Embeddings Extraction - Based on Conditioning Mode
+        #########################################################################
         # Pass self.embeddings_storage so the hook output is captured
         if is_unconditional:
             # For unconditional, we generate a fixed number of samples
@@ -249,7 +251,9 @@ class Evaluator:
         # Shape: (B, 512, 8, 8) for Flowers or Shape (B, 10, 8, 8) for Mnist -> Flattened for FiftyOne
         extracted_embeddings = self.embeddings_storage['down2']
         
-        # Classifier evaluation 
+        ####################################################################################
+        # Classifier Evaluation - Only if self.classifier is not None and not is_text_mode
+        ####################################################################################
         clf_preds, clf_confidences, clf_statuses, clf_stats = [], [], [], {}
 
         if self.classifier is not None and not is_text_mode:
@@ -264,69 +268,11 @@ class Evaluator:
                 )
         
         results = []
-        # # Classifier Inference (IDK Logic)
-        # clf_preds, clf_statuses, clf_confidences = [], [], []
-        # idk_count = 0
-        # mistakes_avoided = 0
-        # missed_positive = 0
-        # total_correct = 0
         total_samples = len(eval_list)
-        
-        # if self.classifier is not None and not is_text_mode:
-        #     self.classifier.eval()
-        #     with torch.no_grad():
-        #         # Apply image normalization and prepare for classifier
-        #         # Rescale imgs from [-1,1] -> [0,1] for classifier
-        #         imgs = (x_gen.to(self.device) + 1) / 2
-        #         # Rescale each image in the batch so its own min is 0 and max is 1
-        #         eps = 1e-8
-        #         b_size = imgs.shape[0]
-        #         img_flat = imgs.view(b_size, -1)
-        #         img_min = img_flat.min(dim=1, keepdim=True)[0].view(b_size, 1, 1, 1)
-        #         img_max = img_flat.max(dim=1, keepdim=True)[0].view(b_size, 1, 1, 1)
-        #         imgs = (imgs - img_min) / (img_max - img_min + eps)
-                
-        #         # ! Apply Classifier-Specific One-Channel Normalization (MNIST Stats); please adjust if using a different dataset !
-        #         imgs = (imgs - 0.1307) / 0.3081
-                
-        #         logits = self.classifier(imgs)
-        #         probs = torch.softmax(logits, dim=1)
-        #         confidences, preds = torch.max(probs, dim=1)
-        #         preds = logits.argmax(dim=1)
-        #         # For status logic
-        #         digit_guesses = logits[:, :10].argmax(dim=1)
-                
-        #         for i in range(total_samples):
-        #             p = preds[i].item()
-        #             conf = confidences[i].item()
-        #             target = eval_list[i]
-        #             is_idk = (p == idk_class)
-        #             if is_idk: idk_count += 1
-                    
-        #             pred_label = "IDK" if is_idk else str(p)
-        #             clf_preds.append(pred_label)
-        #             clf_confidences.append(conf)
-                    
-        #             if is_unconditional:
-        #                 status = f"{conf*100:.1f}% Conf"
-        #             else:
-        #                 if p == target:
-        #                     total_correct += 1
-        #                     status = "Correct"
-        #                 elif is_idk:
-        #                     # If we predicted IDK, would the digit guess have been wrong?
-        #                     if digit_guesses[i].item() != target:
-        #                         mistakes_avoided += 1
-        #                         status = "Correct (IDK Avoided Mistake)"
-        #                     else:
-        #                         status = "Incorrect (Mistaken as IDK)"
-        #                 else:
-        #                     # Predicted a wrong digit (not IDK)
-        #                     missed_positive += 1
-        #                     status = "Incorrect"
-        #             clf_statuses.append(status)
 
-        # Calcolate CLIP scores and save embeddings
+        ################################################
+        #  CLIP Scores Computation & Embeddings Storage
+        ################################################
         for i, cond in enumerate(eval_list):
             img_path = os.path.join(self.results_dir, f"gen_{i:03d}.png")
             # sample_mnist does not save the images 
@@ -354,26 +300,21 @@ class Evaluator:
                 "embedding": emb_vec
             })
 
-        # Calculate FID if real data features are provided and is not unconditional
+        ################################################################################
+        # FID Computation - If real data features are provided and is not unconditional
+        ################################################################################
         fid_score = None
         # Uncomment the following line and comment out the line after if you want FID for conditional MNIST as well
         # if real_dataloader is not None and not is_unconditional:
         if real_dataloader is not None and is_text_mode:
             fid_score = self.compute_fid(x_gen, real_dataloader, self.device)
-            
-            # from torch.utils.data import DataLoader, TensorDataset
-            # # Extract the 2048-dim Inception features from the real images (Input is [-1, 1])
-            # real_feats = extract_inception_features(real_dataloader, self.device)
-            # # Extract Generated Features (Input is [-1, 1] from DDPM)
-            # gen_loader = DataLoader(TensorDataset(x_gen), batch_size=32) #batch_size=len(text_list))
-            # gen_feats = extract_inception_features(gen_loader, self.device)
-            # fid_score = calculate_fid(real_feats, gen_feats)
-        
+           
         # Global Accuracy (excluding IDK as per your provided function)
         print(f"\n--- Evaluation Results ({'Unconditional' if is_unconditional else 'Conditional'}) ---")
         
-        
-        # --- Reporting ---
+        ##############
+        # Reporting
+        ##############
         if self.classifier and not is_text_mode:
             print(f"Total samples: {total_samples}")
             print(f"IDK predictions: {clf_stats['idk_count']} "
@@ -388,29 +329,4 @@ class Evaluator:
                 final_conf = clf_stats["avg_confidence"]
                 final_acc = 0.0
                 
-        # if self.classifier and not is_text_mode:
-        #     print(f"Total samples: {total_samples}")
-        #     print(f"IDK predictions: {idk_count} ({100*idk_count/total_samples:.2f}%)")
-            
-        #     if not is_unconditional:
-        #         # Accuracy only makes sense when targets exist
-        #         accuracy = total_correct / (total_samples - idk_count) if (total_samples - idk_count) > 0 else 0.0
-        #         print(f"Accuracy (excluding IDK): {accuracy:.4f} ({100*accuracy:.2f}%)")
-        #         print(f"Mistakes avoided by IDK: {mistakes_avoided}")
-        #         print(f"Misclassified digits (non-IDK): {missed_positive}")
-        #     else:
-        #         # For unconditional, show the distribution of what the model is making
-        #         from collections import Counter
-        #         # dist = Counter(clf_preds)
-        #         # print(f"Class Distribution: {dict(sorted(dist.items()))}")
-        #         counts = Counter([p for p in clf_preds]) #
-        #         print(f"Class Distribution(Predicted Classes):")
-        #         for digit in sorted(counts.keys()):
-        #             print(f"  Digit {digit}: {counts[digit]} samples")
-                
-        #         final_conf = sum(clf_confidences) / len(clf_confidences)
-                
-        # Return accuracy only if conditional
-        # final_acc = (total_correct / (total_samples - idk_count)) if (not is_unconditional and (total_samples - idk_count) > 0) else 0.0
-        # final_conf = final_conf if is_unconditional else 0.0
         return results, fid_score, final_acc, final_conf 
