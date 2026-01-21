@@ -634,7 +634,9 @@ def predict_with_cascaded_idk(model, loader, device, threshold=0.7448, idk_index
                     "confidence": conf,
                     "pseudo_label": (
                         target[i].item()
-                        if target is not None and not isinstance(target, int)
+                        if target is not None and isinstance(target, int)
+                        else target[i] 
+                        if target is not None
                         else target
                     ),
                     "rejection_type": (
