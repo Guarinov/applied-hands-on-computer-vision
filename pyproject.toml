@@ -35,6 +35,7 @@ dependencies = [
   "open-clip-torch",
   "clip @ git+https://github.com/openai/CLIP.git",
   "einops",
+  "datasets",
 ]
 
 [project.urls]
