@@ -90,9 +90,75 @@ Description: Evaluates flower image generation using encoded CLIP prompts. Metri
 Run: [handsoncv-cilp-assessment](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela)  
 Description: UNet-DDPM model trained unconditionally to generate MNIST digits.
 
+## 🃏 HuggingFace Datasets Repos
+
+Two datasets containing generated images and associated embeddings/metrics are available on Hugging Face:
+
+1. **TF Flowers Diffusion Assessment**  
+   500 generated flower images with:  
+   - UNet embeddings as field vectors  
+   - FiftyOne's uniqueness and representativeness metrics  
+   - CLIP score per sample  
+
+   Downloadable as the dataset repository: [vanessaguarino/TFflowers-diffusion-assessment](https://huggingface.co/datasets/vanessaguarino/TFflowers-diffusion-assessment)
+
+2. **MNIST Confidence-Thresholded Evaluation**  
+   500 generated MNIST digits with:  
+   - Pseudo-labels from the pretrained 11-class classifier  
+   - Newly generated predictions using the optimized IDK cascade threshold  
+   - UNet embeddings as field vectors  
+   - FiftyOne's uniqueness and representativeness metrics  
+   - UMAP representation of the UNet embeddings  
+
+   Downloadable as the dataset repository: [vanessaguarino/mnist-confidence-thresholded-evaluation](https://huggingface.co/datasets/vanessaguarino/mnist-confidence-thresholded-evaluation)
+
+---
+
+### Uploading a New Dataset to Hugging Face
+
+To upload newly generated images (with a modified procedure or a larger number of evaluated images), follow these steps:
+
+#### Step 1 — Add YAML Metadata
+
+Paste the following `YAML` header at the very top of the `README.md` inside the local export folder (`./data/hf_flower_evaluation_report`) to categorize the data as the `test` split:
+
+```yaml
+---
+dataset_info:
+  configs:
+  - config_name: default
+    data_files:
+    - split: test
+      path: "test/samples.json"
+---
+# Flower Diffusion Assessment Results
+This dataset contains the FiftyOne export of the diffusion evaluation.
+- **Split**: Test / Evaluation
+- **Format**: FiftyOneDataset
+```
+
+#### Step 2 — Authenticate Hugging Face CLI
+
+```bash
+huggingface-cli login --token YOUR_HF_TOKEN
+```
+
+#### Step 3 — Create and Upload Dataset
+Replace `your-username` with your actual HF username
+
+```bash
+# Create a new dataset repository. Usage: huggingface-cli upload [REPO_ID] [LOCAL_FOLDER] [REMOTE_FOLDER]
+huggingface-cli repo create your-username/TFflowers-diffusion-assessment --repo-type dataset
+
+# Upload the local export folder to the dataset by pointing either to the root directory using `.` or directly to the `test/` subfolder by using `test` as the upload path.
+huggingface-cli upload your-username/TFflowers-diffusion-assessment ./data/hf_flower_evaluation_report test --repo-type dataset
+
+# If the local dataset is too large, we recommend trying again with upload-large-folder
+huggingface-cli upload-large-folder your-username/TFflowers-diffusion-assessment ./data/hf_flower_evaluation_report --repo-type dataset
+
 ## 🧾 Summary of Results
 
-Below is a unified summary of all experiments, including the Fusion Exploration (Notebook `02_*`), Ablation Study (Notebook `03_*`), and the CILP / Cross-Modal Pipeline (Notebook `04_*`).
+Below is a unified summary of all experiments, including the Training of UNet-DDPM CFG on Cropped Flowers (Notebook `05_a_*`), its Evaluation (Notebook `05_b_*`), and the Training & Uncertainty-Aware Evaluation of the Unconditional UNet-DDPM on MNIST Digits (Notebook `05_bonus_*`).
 
 | Notebook | Experiment / Architecture      | Val Loss | Avg CLIP (%) | FID | Avg Classifier Conf (%) | Parameters | Sec / Epoch | GPU Mem (MB) |
 |--------------|------------------------------------|--------------|------------------|-------|-------|----------------|------------------|------------------|
@@ -132,6 +198,7 @@ To control randomness in experiments—including:
 - dataset sampling,
 - dataloader shuffling,
 - model initialization,
+
 set the `SEED` variable consistently across notebooks. This seed ensures reproducibility by controlling randomness in `numpy`, `torch`, and CUDA operations (`torch.cuda` and `torch.backends.cudnn`).  
 
 - **Reproducing results:** Leave the preselected `SEED` unchanged to retrain and evaluate exactly as reported.  
