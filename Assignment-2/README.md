@@ -7,7 +7,7 @@ This repository implements an end-to-end multimodal learning pipeline covering d
 | Path/File | Purpose |
 |------|---------|
 | `checkpoints/` | Contains the 9 best model checkpoints (`*.pt`), corresponding to the analyses in notebooks `02_*`, `03_*`, and `04_*`. Each checkpoint was selected based on lowest validation loss during training. |
-| `notebooks/` | Notebooks should be used **sequentially**, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality. |
+| `notebooks/` | Notebooks are intended to be run sequentially, beginning with data split creation and visualization, and ending with cross-modal projection for domain adaptation to another modality. |
 | `results/` | Folder containing: `.png` screenshots of the **FiftyOne App** from notebook `01_*`; **W&B dashboards** corresponding to each notebook training; visualizations of tables used for analyzing **fusion strategies** and related **ablation study**. |
 | `scripts/` | Code for downloading data from Google Drive public link. |
 | `subset_splits.json` | `.json` file contraining the train/validation splits for the dataset, along with the random seed (`42`) and the subset percentage (`0.3`) used for sampling. |
@@ -50,9 +50,9 @@ data/assessment/
 
 ## 📊 W\&B Projects Links
 
-The runs associated with the analyses in `notebooks/` are available at the following public link [W&B Projects](https://wandb.ai/handsoncv-research/projects), , under the username `guarino-vanessa-emanuela` for proper W&B access.
+The runs associated with the analyses in `notebooks/` are available at the following public link [W&B Projects](https://wandb.ai/handsoncv-research/projects), under the username `guarino-vanessa-emanuela` for proper W&B access.
 
-The trainings corresponding to the different tasks in **Assignment 2** are organized into three projects, each containing runs with logged metrics such as first validation predictions, training and validation losses, accuracy, learning rate schedule, GPU memory usage, checkpoints, model parameters, and full configuration logs:
+The trainings corresponding to the different tasks in `Assignment-2` are organized into three projects, each containing runs with logged metrics such as first validation predictions, training and validation losses, accuracy, learning rate schedule, GPU memory usage, model parameters, and full configuration logs:
 
 1. **Fusion Architectures:** [handsoncv-fusion](https://wandb.ai/handsoncv-research/handsoncv-fusion?nw=nwuserguarinovanessaemanuela) – for the four fusion architectures implemented and compared.  
 2. **Downsampling Ablation:** [handsoncv-maxpoolvsstride](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela) – for comparing Max Pooling vs Strided Convolution in the `Embedder` class.  
@@ -81,7 +81,7 @@ In-depth analyses of the metrics are contained in the indicated notebooks.
 
 ## 🔁 Reproducing the Main Results
 
-Once the data have been downloaded and the `handsoncv` environment is installed, you are ready to reproduce all experiments.  
+Once the data have been downloaded and the `handsoncv` environment is installed, we are ready to reproduce all experiments.  
 Select the `handsoncv` kernel in each notebook and execute the cells sequentially.
 
 All experiments rely on the reusable functions and models provided in `src/`, which are installed in editable mode via `pip install -e .`.
@@ -104,20 +104,19 @@ The notebooks are organized to follow a logical experimental progression, summar
 ### Dataset Subsets and Reproducibility
 - Notebook `01_*` **must be run** if you want to recreate the dataset splits.  
 - The size of the subset can be controlled via the `PERCENTAGE_SUBSET` variable.  
-- The provided `subset.json` file stores **30% of the original dataset** and is sufficient to reproduce all reported results.
+- The provided `subset.json` file stores **$30\%$ of the original dataset** and is sufficient to reproduce all reported results.
 
-To introduce different randomness in:
+To control randomness in experiments—including:
 - dataset sampling,
 - dataloader shuffling,
 - model initialization,
-
-modify the `SEED` variable consistently across notebooks. This seed controls `numpy`, `torch`, and CUDA-related randomness (`torch.cuda`, `torch.backends.cudnn`).
+set the `SEED` variable consistently across notebooks. This seed ensures reproducibility by controlling randomness in `numpy`, `torch`, and CUDA operations (`torch.cuda` and `torch.backends.cudnn`). 
 
 --- 
 
 ### Running the Experiments
 - If the provided `subset.json` is used, notebooks `02_*`, `03_*`, and `04_*` can be run directly.
-- These notebooks follow a **theoretical progression** but can be executed **independently**.
+- These notebooks follow a theoretical progression but can be executed independently.
   
 Each notebook and the corresponding modules in `src/` include detailed inline documentation explaining architectural choices, experimental settings, and evaluation protocols.
 
