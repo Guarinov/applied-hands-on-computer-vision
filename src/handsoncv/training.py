@@ -9,7 +9,7 @@ import torchvision.transforms as T
 import torch.nn.functional as F
 
 from torchvision.utils import make_grid, save_image
-from handsoncv.utils import sample_flowers, sample_mnist
+from handsoncv.utils import sample_flowers, sample_mnist, sample_unconditional
 from handsoncv.visualization import log_similarity_heatmap
 from handsoncv.metrics import calculate_clip_score
 
@@ -267,8 +267,8 @@ def get_context_mask(c, drop_prob, device):
     """
     return torch.bernoulli(torch.ones(c.shape[0], 1).to(device) - drop_prob)
 
-def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, drop_prob, save_dir, 
-                    sample_save_dir, clip_model=None, clip_preprocess=None, cond_list=None, scheduler=None):
+def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, device, drop_prob, save_dir, sample_save_dir, 
+                    clip_model=None, clip_preprocess=None, cond_list=None, scheduler=None, loss_type="mse",):
     """
     Train a DDPM model using classifier-free guidance and save best checkpoints.
     Unified training loop for MNIST (labels) or Flowers (CLIP)
@@ -303,11 +303,11 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
     best_clip_score = -1.0
     os.makedirs(sample_save_dir, exist_ok=True)
     
-    # Determine if we are in CLIP/Text mode or Label/MNIST mode
-    is_text_mode = False
-    if cond_list is not None and len(cond_list) > 0:
-        if isinstance(cond_list[0], str) and clip_model is not None:
-            is_text_mode = True
+    # Mode Detection
+    is_unconditional = cond_list is None
+    is_text_mode = False if is_unconditional else isinstance(cond_list[0], str)
+    
+    wandb.config.update({"loss_type": loss_type, "unconditional": is_unconditional})
     
     # Static Logs for Wandb
     params = count_parameters(model)
@@ -321,14 +321,22 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
         model.eval()
         # ema_model.eval() # Use EMA model for sampling
         with torch.no_grad():
-            # Call centralized function to generate images via smoothed model
-            if is_text_mode:
-                x_gen, _ = sample_flowers(model, ddpm, clip_model, cond_list, device=device, results_dir=sample_save_dir) # Flower/CLIP mode
+            # Call centralized functions to generate images
+            if is_unconditional:
+                # Generate 16 random images
+                x_gen = sample_unconditional(model, ddpm, 16, model.img_ch, model.img_size, device)
+                nrow = 4
+            elif is_text_mode:
+                # Flower/CLIP-Text mode
+                x_gen, _ = sample_flowers(model, ddpm, clip_model, cond_list, device=device, results_dir=sample_save_dir) 
+                nrow = len(cond_list)
             else:
+                # MNIST/Label mode (w_tests=[0.0, 1.0])
                 w_tests = [0.0, 1.0, 2.0]
-                x_gen, _ = sample_mnist(model, ddpm, cond_list, device=device, results_dir=sample_save_dir, w_tests=w_tests) # MNIST/Label mode (w_tests=[0.0, 1.0])
+                x_gen, _ = sample_mnist(model, ddpm, cond_list, device=device, results_dir=sample_save_dir, w_tests=w_tests) 
+                nrow = len(cond_list)
                         
-            grid = make_grid(x_gen.cpu(), nrow=len(cond_list), normalize=True, value_range=(-1, 1))
+            grid = make_grid(x_gen.cpu(), nrow=nrow, normalize=True, value_range=(-1, 1))
             save_path = os.path.join(sample_save_dir, f"sample_ep{epoch_idx:02d}.png")
             save_image(grid, save_path)
             print(f"Saved samples to {save_path}")
@@ -347,15 +355,18 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             optimizer.zero_grad()
             
             t = torch.randint(0, ddpm.T, (x.shape[0],), device=device).long()
-            if not is_text_mode:
-                c = F.one_hot(c, num_classes=model.c_embed_dim).float() 
-            # Context mask for Classifier-Free Guidance
-            c_mask = get_context_mask(c, drop_prob, device)
             
-            loss = ddpm.get_loss(model, x, t, c, c_mask)
+            # Logic for Conditioning
+            if is_unconditional:
+                c = torch.zeros(x.shape[0], model.c_embed_dim).to(device)
+                c_mask = torch.zeros(x.shape[0], 1).to(device)
+            else:
+                c = F.one_hot(c, model.c_embed_dim).float() if not is_text_mode else c
+                c_mask = get_context_mask(c, drop_prob, device)
+            
+            loss = ddpm.get_loss(model, x, t, loss_type, c, c_mask)
             loss.backward()
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) # Gradient clipping
             optimizer.step()
             
             # Update EMA model at every step
@@ -382,12 +393,18 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             for step, (x_v, c_v) in enumerate(val_loader):
                 x_v, c_v = x_v.to(device), c_v.to(device)
                 t_v = torch.randint(0, ddpm.T, (x_v.shape[0],), device=device).long()
-                if not is_text_mode:
-                    c_v = F.one_hot(c_v, num_classes=model.c_embed_dim).float() 
-                c_mask_v = get_context_mask(c_v, 0, device) # No dropout in val
+                
+                if is_unconditional:
+                    c_v = torch.zeros(x_v.shape[0], model.c_embed_dim).to(device)
+                    c_mask_v = torch.zeros(x_v.shape[0], 1).to(device)
+                else:
+                    c_v = F.one_hot(c_v.to(device), model.c_embed_dim).float() if not is_text_mode else c_v.to(device)
+                    c_mask_v = torch.ones(c_v.shape[0], 1).to(device)  # No dropout in validation 
+                    
                  # Use EMA model to check if it is generalizing well
-                loss_v = ddpm.get_loss(model, x_v, t_v, c_v, c_mask_v)
+                loss_v = ddpm.get_loss(model, x_v, t_v, loss_type, c_v, c_mask_v)
                 val_loss += loss_v.item()
+                
         avg_val_loss = val_loss / (step+1)
         print(f"Epoch {epoch}: Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
         
@@ -397,10 +414,10 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             
             # Log predicted images onto W&B TABLE
             w_tests = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 5.0] if is_text_mode else [0.0, 1.0, 2.0]  # Assuming sample_w uses w_tests
-            num_conds = len(cond_list)
             
             # Conditional CLIP Scoring 
             if is_text_mode:
+                num_conds = len(cond_list)
                 scores = []
                 for i, w in enumerate(w_tests):
                     # We usually only care about alignment for positive guidance weights
@@ -418,16 +435,19 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
                 
                 avg_clip_score = sum(scores) / len(scores) if scores else 0.0
             
-            img_idx = 0
-            for w in w_tests:
-                for cond in cond_list:
+            if not is_unconditional:
+                img_idx = 0
+                for w in w_tests:
+                    # for cond in cond_list:
                     img = x_gen[img_idx]
                     # Rescale [-1, 1] to [0, 1] for Wandb
                     img = (img.clamp(-1, 1) + 1) / 2
+                    # Determine conditioning type
+                    cond_val = "unconditional" if is_unconditional else str(cond_list[i % len(cond_list)])
                     # Add row to the table
                     prediction_table.add_data(
                         epoch, 
-                        str(cond), # Could be "sunflower" or "0"
+                        cond_val, # e.g. "sunflower", "0" or "unconditional" 
                         w, 
                         wandb.Image(img.permute(1, 2, 0).cpu().numpy()) #, caption=f"{prompt} (w={w})")
                     )
@@ -484,11 +504,10 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             "learning_rate": optimizer.param_groups[0]['lr'],
             "epoch_time_sec": duration,
             "peak_gpu_mem_mb": peak_mem_mb,
-            # "sample_predictions": prediction_table,
         }
         if is_text_mode: 
             log_dict["sample_prediction"] = prediction_table
-        else: 
+        elif not is_unconditional: 
             log_dict["mnist_sample_prediction"] = prediction_table
         if avg_clip_score is not None:
             log_dict["clip_score"] = avg_clip_score

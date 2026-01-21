@@ -489,23 +489,40 @@ def show_tensor_image(image):
     ])
     plt.imshow(reverse_transforms(image[0].detach().cpu()))
 
-def plot_bonus_tsk_confidence_distribution(model, loader, device):
+def plot_bonus_tsk_confidence_distribution(model, loader, device, idk_class=10):
     model.eval()
-    correct_confidences = []
-    incorrect_confidences = []
+    wise_conf = []   # Model was right OR avoided a mistake
+    foolish_conf = [] # Model was wrong OR missed a valid digit
 
     with torch.no_grad():
         for data, target in loader:
             data, target = data.to(device), target.to(device)
-            output = model(data)
-            
-            # Get actual probabilities
-            probs = torch.exp(output) 
+            logits = model(data)
+            probs = torch.softmax(logits, dim=1)
             conf, pred = torch.max(probs, dim=1)
             
-            correct_mask = pred.eq(target)
-            correct_confidences.extend(conf[correct_mask].cpu().numpy())
-            incorrect_confidences.extend(conf[~correct_mask].cpu().numpy())
+            # What would it have guessed if forced to pick 0-9?
+            digit_only_guess = logits[:, :10].argmax(dim=1)
+
+            for i in range(len(target)):
+                p = pred[i].item()
+                t = target[i].item()
+                c = conf[i].item()
+                d_guess = digit_only_guess[i].item()
+
+                if p == t:
+                    # Case 1: Predicted the right digit
+                    wise_conf.append(c)
+                elif p == idk_class:
+                    if d_guess != t:
+                        # Case 2: Said IDK and would have been wrong 
+                        wise_conf.append(c)
+                    else:
+                        # Case 3: Said IDK but would have been right 
+                        foolish_conf.append(c)
+                else:
+                    # Case 4: Predicted the wrong digit 
+                    foolish_conf.append(c)
 
     # Styling Block
     sns.set_style("white") # White background
@@ -518,12 +535,12 @@ def plot_bonus_tsk_confidence_distribution(model, loader, device):
     color_incorrect = "#FFC2D1"
 
     # Plot Correct Predictions
-    sns.histplot(correct_confidences, bins=30, kde=True, color=color_correct, 
-                 label='Correct', stat="density", alpha=0.8, edgecolor=None)
+    sns.histplot(wise_conf, bins=30, kde=True, color=color_correct, 
+                 label='Correct', stat="density", alpha=0.8, edgecolor=None, zorder=2)
     
     # Plot Incorrect Predictions
-    sns.histplot(incorrect_confidences, bins=30, kde=False, color=color_incorrect, 
-                 label='Incorrect', stat="density", alpha=0.8, edgecolor=None)
+    sns.histplot(foolish_conf, bins=30, kde=False, color=color_incorrect, 
+                 label='Incorrect', stat="density", alpha=0.8, edgecolor=None, zorder=1)
 
     # Styling the KDE line of Correct Predictions (making it thicker and darker)
     for line in ax.lines:
@@ -547,7 +564,7 @@ def plot_bonus_tsk_confidence_distribution(model, loader, device):
     plt.tight_layout()
     plt.show()
 
-    return correct_confidences, incorrect_confidences
+    return wise_conf, foolish_conf
 
 def find_stability_limit(coverages, accuracies):
     """Finds the 'elbow' point furthest from the line connecting start and end."""

@@ -7,6 +7,7 @@ from PIL import Image
 
 def extract_inception_features(dataloader, device):
     """Extracts 2048-dim features from the InceptionV3 pooling layer.
+    Handles both 1-channel (MNIST) and 3-channel (Flowers) inputs.
     
     Args:
         dataloader: loader for images
@@ -26,8 +27,13 @@ def extract_inception_features(dataloader, device):
     features = []
     with torch.no_grad():
         for batch in dataloader:
-            # Batch is [B, 3, H, W], assume in range [-1, 1]
+            # Batch is [B, 3, H, W] or [B, 1, H, W], assume in range [-1, 1]
             x = batch[0].to(device)   # x ∈ [-1, 1]
+            
+            # If greyscale images ([B, 1, H, W])
+            if x.shape[1] == 1:
+                # Repeat the single channel 3 times to satisfy InceptionV3 [B, 1, H, W] -> [B, 3, H, W]
+                x = x.repeat(1, 3, 1, 1)
             
             # Resize
             x = torch.nn.functional.interpolate(
@@ -39,6 +45,7 @@ def extract_inception_features(dataloader, device):
             
             # Normalize as per ImageNet
             # Note: Apply manual normalization because transforms.Compose usually works on PIL
+            x = x.clone() # to avoid in-place modification errors in some torch versions 
             x[:, 0] = (x[:, 0] - 0.485) / 0.229
             x[:, 1] = (x[:, 1] - 0.456) / 0.224
             x[:, 2] = (x[:, 2] - 0.406) / 0.225
@@ -109,8 +116,7 @@ def calculate_fid(real_embeddings, gen_embeddings):
     fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
     return fid
 
-def calculate_idk_metrics(correct_scores, incorrect_scores):
-    thresholds = np.linspace(0.1, 1, 100)
+def calculate_idk_metrics(correct_scores, incorrect_scores, thresholds = np.linspace(.5, .9, 100)):
     accuracies = []
     coverages = []
     

@@ -74,38 +74,68 @@ def evaluate_model(model, val_loader, criterion, device, run_final_assessment=Fa
     else:
         print(f"Validation Results - Avg Loss: {avg_loss:.4f} | Accuracy: {accuracy:.4f}")
     
-def _test_mnist_classifier(model, device, test_loader):
+def _test_multiclass_mnist_classifier(model, device, test_loader, idk_class=10):
     """
-    Evaluate a trained MNIST classifier on a test dataset. Function provided 
-    in the Nvidia course Generative AI with Diffusion Models 
-    https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+C-FX-08+V1 
+    Evaluate a trained MNIST classifier with explicit IDK predictions on a test dataset.
 
-    This function runs the model in evaluation mode, computes the average
-    negative log-likelihood loss over the entire test set, and reports
-    classification accuracy.
+    This function computes:
+    - Average cross-entropy loss
+    - Accuracy on non-IDK predictions
+    - Number of predictions deferred to IDK
+    - Number of mistakes avoided by predicting IDK
+    - Number of misclassified digits (non-IDK)
 
     Args:
-        model (torch.nn.Module): Trained neural network for MNIST classification.
-            The model is expected to output log-probabilities for each class.
-        device (str/torch.device): Device on which computation is performed (e.g., CPU or CUDA).
-        test_loader (torch.utils.data.DataLoader): DataLoader providing test dataset batches as (data, target) pairs.
+        model (torch.nn.Module): Trained MNIST classifier (outputs raw logits, 11 classes including IDK).
+        device (str/torch.device): Device for computation (CPU or CUDA).
+        test_loader (torch.utils.data.DataLoader): DataLoader for the test dataset.
+        idk_class (int, optional): Index of the IDK class. Defaults to 10.
     """
     model.eval()
-    test_loss = 0
-    correct = 0
+    running_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+    idk_count = 0
+    mistakes_avoided = 0
+    missed_positive = 0
+
+    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            logits = model(data)
+            batch_size = data.size(0)
+            # Compute loss
+            loss = criterion(logits, target)
+            running_loss += loss.item()
+            total_samples += batch_size
+            # Predictions
+            pred_classes = logits.argmax(dim=1)
+            # Identify IDK predictions
+            idk_mask = pred_classes == idk_class
+            idk_count += idk_mask.sum().item()
+            
+            # Non-IDK predictions
+            non_idk_mask = ~idk_mask
+            correct_non_idk = (pred_classes[non_idk_mask] == target[non_idk_mask]).sum().item()
+            total_correct += correct_non_idk
+            # Mistakes avoided by IDK
+            mistakes_avoided += ((pred_classes != target) & idk_mask).sum().item()
+            # Misclassified digits (non-IDK)
+            missed_positive += ((pred_classes != target) & non_idk_mask).sum().item()
 
-    test_loss /= len(test_loader.dataset)
+    avg_loss = running_loss / total_samples
+    accuracy = total_correct / (total_samples - idk_count) if (total_samples - idk_count) > 0 else 0.0
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+    # Print summary
+    print(f"\nTest set results:")
+    print(f"Average Loss: {avg_loss:.4f}")
+    print(f"Accuracy (excluding IDK): {accuracy:.4f} ({100*accuracy:.2f}%)")
+    print(f"Total samples: {total_samples}")
+    print(f"IDK predictions: {idk_count} ({100*idk_count/total_samples:.2f}%)")
+    print(f"Mistakes avoided by IDK: {mistakes_avoided}")
+    print(f"Misclassified digits (non-IDK): {missed_positive}\n")
 
 def search_checkpoint_model(checkpoints_dir, instantiated_model, task_mode='lidar-only'):
     """
@@ -214,6 +244,16 @@ class DDPM:
         # Reverse diffusion variables
         self.sqrt_a_inv = torch.sqrt(1 / self.a)
         self.pred_noise_coeff = (1 - self.a) / torch.sqrt(1 - self.a_bar)
+    
+    def _get_coeff(self, tensor, t, x_shape):
+        """
+        Helper to extract coefficients and reshape them for broadcasting.
+        Equivalent to 'get_index_from_list' in the course notebook.
+        """
+        batch_size = t.shape[0]
+        out = tensor.gather(-1, t.long())
+        # Reshape to (batch_size, 1, 1, 1, ...) based on the number of image dimensions
+        return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device) # Dynamic Shape Handling
 
     def q(self, x_0, t):
         """
@@ -235,7 +275,7 @@ class DDPM:
         x_t = sqrt_a_bar_t * x_0 + sqrt_one_minus_a_bar_t * noise
         return x_t, noise
 
-    def get_loss(self, model, x_0, t, *model_args):
+    def get_loss(self, model, x_0, t, loss_type="mse", *model_args):
         """
         Compute DDPM training loss (MSE on predicted noise).
 
@@ -243,6 +283,7 @@ class DDPM:
             model      : noise prediction model
             x_0        : Tensor (B, C, H, W)
             t          : Tensor (B,)
+            loss_type: : String ("mse" or "huber")
             model_args : additional conditioning inputs
 
         Output:
@@ -250,6 +291,9 @@ class DDPM:
         """
         x_noisy, noise = self.q(x_0, t)
         noise_pred = model(x_noisy, t, *model_args)
+        
+        if loss_type == "huber":
+            return F.smooth_l1_loss(noise, noise_pred) # Huber loss
         return F.mse_loss(noise, noise_pred)
 
     @torch.no_grad()
@@ -266,13 +310,16 @@ class DDPM:
             Tensor (B, C, H, W) – denoised image at timestep t-1
         """
         t = t.int()
-        pred_noise_coeff_t = self.pred_noise_coeff[t]
-        sqrt_a_inv_t = self.sqrt_a_inv[t]
+        # pred_noise_coeff_t = self.pred_noise_coeff[t]
+        # sqrt_a_inv_t = self.sqrt_a_inv[t]
+        pred_noise_coeff_t = self._get_coeff(self.pred_noise_coeff, t, x_t.shape)
+        sqrt_a_inv_t = self._get_coeff(self.sqrt_a_inv, t, x_t.shape)
+        
         u_t = sqrt_a_inv_t * (x_t - pred_noise_coeff_t * e_t)
         if t[0] == 0:  # All t values should be the same
             return u_t  # Reverse diffusion complete!
         else:
-            B_t = self.B[t - 1]  # Apply noise from the previos timestep
+            B_t = self._get_coeff(self.B, t - 1, x_t.shape)  # Apply noise from the previos timestep
             new_noise = torch.randn_like(x_t)
             return u_t + torch.sqrt(B_t) * new_noise
 
@@ -377,6 +424,7 @@ def sample_w(
     x_t_store = torch.stack(x_t_store)
     return x_t, x_t_store
 
+@torch.no_grad()
 def sample_flowers(unet_model, ddpm, clip_model, text_list, device="cuda" if torch.cuda.is_available() else "cpu", 
                    results_dir=None, embeddings_storage=None, w_tests=None):
     """
@@ -431,19 +479,18 @@ def sample_flowers(unet_model, ddpm, clip_model, text_list, device="cuda" if tor
                 save_image(x_gen[i:i+1], img_path, normalize=True, value_range=(-1, 1))  # [1, 3, 32, 32]
     return x_gen, x_gen_store
 
-def sample_mnist(unet_model, ddpm, labels, device="cuda", results_dir=None, w_tests=None):
+@torch.no_grad()
+def sample_mnist(unet_model, ddpm, labels, device="cuda" if torch.cuda.is_available() else "cpu", 
+                 results_dir=None, embeddings_storage=None, w_tests=None):
     """
     Generate MNIST images conditioned on class labels (0-9).
     """
     unet_model.eval()
     
     # If no labels provided, generate one of each digit
-    if labels is None:
-        labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    
+    if labels is None: labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # If labels is a list, convert to tensor
     c = torch.tensor(labels).to(device).long() 
-    
     # F.one_hot returns Long by default, we must add .float()
     c = F.one_hot(c, num_classes=10).float() 
     
@@ -453,6 +500,14 @@ def sample_mnist(unet_model, ddpm, labels, device="cuda", results_dir=None, w_te
         # Use the existing classifier-free guidance sampler
         # Note: sample_w handles the batch doubling and w weights
         x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device, w_tests)
+        
+        if embeddings_storage is not None:
+            # Handle cases where w_tests results in multiple images per label
+            repeat_factor = x_gen.shape[0] // c.shape[0]
+            c_repeated = c.repeat(repeat_factor, 1) 
+            t_zero = torch.zeros(x_gen.shape[0], device=device).long()
+            c_mask = torch.ones(x_gen.shape[0], 1, device=device)
+            _ = unet_model(x_gen, t_zero, c_repeated, c_mask)
 
         if results_dir:
             os.makedirs(results_dir, exist_ok=True)
@@ -462,3 +517,25 @@ def sample_mnist(unet_model, ddpm, labels, device="cuda", results_dir=None, w_te
                 save_image(x_gen[i:i+1], img_path, normalize=True, value_range=(-1, 1))
                 
     return x_gen, x_gen_store
+
+@torch.no_grad()
+def sample_unconditional(unet_model, ddpm, n_samples, img_ch, img_size, device, embeddings_storage=None):
+    unet_model.eval()
+    x_t = torch.randn(n_samples, img_ch, img_size, img_size).to(device)
+    # Create null conditioning
+    c = torch.zeros(n_samples, unet_model.c_embed_dim).to(device)
+    c_mask = torch.zeros(n_samples, 1).to(device)
+    
+    for i in range(0, ddpm.T)[::-1]:
+        t = torch.tensor([i]).to(device).repeat(n_samples)
+        e_t = unet_model(x_t, t, c, c_mask)
+        x_t = ddpm.reverse_q(x_t, t, e_t)
+    
+    if embeddings_storage is not None:
+        unet_model.eval()
+        with torch.no_grad():
+            t_zero = torch.zeros(n_samples, device=device).long()
+            c = torch.zeros(n_samples, unet_model.c_embed_dim).to(device)
+            c_mask = torch.zeros(n_samples, 1).to(device)
+            _ = unet_model(x_t, t_zero, c, c_mask) # Trigger Hook
+    return x_t

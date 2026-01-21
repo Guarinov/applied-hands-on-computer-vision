@@ -260,3 +260,27 @@ class TFflowersCLIPDataset(Dataset):
 
     def __len__(self):
         return len(self.imgs_paths)
+    
+class GeneratedMNISTDataset(Dataset):
+    def __init__(self, results_list, transform=None):
+        """
+        results_list: the 'eval_results' list containing 'img_path' and 'condition'
+        """
+        # Only include results that actually saved an image
+        self.samples = [r for r in results_list if r['img_path'] is not None]
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path = self.samples[idx]['img_path']
+        label = self.samples[idx]['classifier_label'] #e.g. 0-9 integer or IDK
+        
+        # Load image (PNGs are saved as [0, 255] by save_image internally)
+        image = Image.open(img_path).convert('L') # 'L' for grayscale
+        
+        if self.transform:
+            image = self.transform(image)
+            
+        return image, label
