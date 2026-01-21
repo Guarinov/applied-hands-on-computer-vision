@@ -490,6 +490,39 @@ def show_tensor_image(image):
     plt.imshow(reverse_transforms(image[0].detach().cpu()))
 
 def plot_bonus_tsk_confidence_distribution(model, loader, device, idk_class=10):
+    """
+    Plot the distribution of classifier confidences to guide IDK threshold selection.
+
+    This function evaluates a multi-class classifier on a labeled test dataset (MNIST)
+    and separates predictions into "wise" (correct or IDK preventing a mistake) 
+    and "foolish" (incorrect or IDK discarding a correct prediction) categories.
+
+    IDK logic:
+    - If the predicted class is correct, the confidence is considered "wise".
+    - If the predicted class is IDK:
+        - If the second-best digit guess would have been wrong, it is "wise".
+        - If the second-best digit guess would have been correct, it is "foolish".
+    - If the predicted class is incorrect (not IDK), the confidence is "foolish".
+
+    A histogram of confidence distributions for "wise" vs "foolish" predictions is plotted 
+    using Seaborn for visual inspection.
+
+    Args:
+        model (nn.Module): The multi-class classifier (with an optional IDK class).
+        loader (DataLoader): PyTorch DataLoader containing test images and labels.
+        device (torch.device): Device to perform computations on (CPU or CUDA).
+        idk_class (int, optional): Index of the IDK class in the classifier outputs. Default is 10.
+
+    Returns:
+        tuple:
+            - wise_conf (list[float]): List of confidence values for correct or appropriately uncertain predictions.
+            - foolish_conf (list[float]): List of confidence values for incorrect or unnecessarily discarded predictions.
+
+    Example:
+        wise_conf, foolish_conf = plot_bonus_tsk_confidence_distribution(
+            mnist_idk_multi_classifier, test_loader_classifier, DEVICE
+        )
+    """
     model.eval()
     wise_conf = []   # Model was right OR avoided a mistake
     foolish_conf = [] # Model was wrong OR missed a valid digit
@@ -586,6 +619,22 @@ def find_stability_limit(coverages, accuracies):
     return np.argmax(distances)
 
 def plot_bonus_tsk_acc_coverage_curve(coverages, accuracies):
+    """
+    Plot accuracy vs coverage curve and identify the 'elbow' point.
+    A kind of heuristic selective classification risk plot.
+
+    The elbow represents the threshold where accuracy plateaus, balancing
+    correctness and coverage for the IDK cascade.
+
+    Args:
+        coverages (list[float]): Fraction of samples accepted at each threshold.
+        accuracies (list[float]): Accuracy on accepted samples at each threshold.
+
+    Returns:
+        tuple: (knee_accuracy, knee_coverage)
+            - knee_accuracy: Accuracy at the elbow point.
+            - knee_coverage: Coverage at the elbow point.
+    """
     # Find point where accuracy starts dropping 
     knee_idx = find_stability_limit(coverages, accuracies)
     knee_acc = accuracies[knee_idx]

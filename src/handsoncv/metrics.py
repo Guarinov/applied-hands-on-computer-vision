@@ -117,6 +117,21 @@ def calculate_fid(real_embeddings, gen_embeddings):
     return fid
 
 def calculate_idk_metrics(correct_scores, incorrect_scores, thresholds = np.linspace(.5, .9, 100)):
+    """
+    Compute accuracy and coverage for a range of IDK confidence thresholds.
+    Performs a sort of heuristic selective classification analysis.
+
+    Args:
+        correct_scores (list[float]): Confidence scores for correctly classified samples.
+        incorrect_scores (list[float]): Confidence scores for incorrectly classified samples.
+        thresholds (np.ndarray, optional): List of confidence thresholds to sweep.
+
+    Returns:
+        tuple: (thresholds, accuracies, coverages)
+            - thresholds: List of thresholds used.
+            - accuracies: Accuracy on samples with confidence >= threshold.
+            - coverages: Fraction of samples retained (not deferred to IDK) at each threshold.
+    """
     accuracies = []
     coverages = []
     
@@ -142,6 +157,17 @@ def calculate_idk_metrics(correct_scores, incorrect_scores, thresholds = np.lins
     return thresholds, accuracies, coverages
 
 def find_optimal_threshold(thresholds, accuracies, target_accuracy=0.9985):
+    """Selects the lowest confidence threshold that achieves at least the target accuracy.
+
+    Args:
+        thresholds (iterable of float): Swept confidence thresholds.
+        accuracies (iterable of float): Accuracy corresponding to each threshold.
+        target_accuracy (float): Desired minimum accuracy for accepted predictions.
+
+    Returns:
+        float: Selected confidence threshold. If no threshold achieves the target,
+               returns the highest tested threshold.
+    """
     for t, acc in zip(thresholds, accuracies):
         if acc >= target_accuracy:
             return t

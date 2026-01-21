@@ -622,7 +622,22 @@ class UNet(nn.Module):
         return self.out(torch.cat((up2, down0), 1))
 
 class MnistClassifier(nn.Module):
+    """
+    LeNet-5–style convolutional classifier for MNIST.
+
+    This architecture is a modernized variant of LeNet-5, using ReLU activations
+    and dropout for regularization. It is inspired by the notebook:
+    https://colab.research.google.com/github/andandandand/practical-computer-vision/blob/main/notebooks/Image_Dataset_Curation_with_Foundation_and_Specialist_Models_MNIST_CLIP_vs_LeNet5.ipynb
+
+    The model is used as a multiclass digit classifier (and optionally extended
+    with an extra IDK class) and supports feature extraction via an external
+    embedding hook.
+    """
     def __init__(self, num_classes=10):
+        """
+        Args:
+            num_classes (int): Number of output classes (e.g. 10 digits or 11 with IDK).
+        """
         super(MnistClassifier, self).__init__()
         self.conv1 = nn.Conv2d(1, 6, kernel_size=5)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
@@ -637,6 +652,15 @@ class MnistClassifier(nn.Module):
         self.current_embeddings = []
 
     def forward(self, x):
+        """
+        Forward pass through the network.
+
+        Args:
+            x (Tensor): Input image tensor of shape (B, 1, 28, 28).
+
+        Returns:
+            Tensor: Logits of shape (B, num_classes).
+        """
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = F.relu(self.conv3(x))

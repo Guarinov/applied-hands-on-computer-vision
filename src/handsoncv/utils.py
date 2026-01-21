@@ -231,29 +231,32 @@ class DDPM:
             B      : Tensor (T,) – noise schedule (betas)
             device : torch.device
         """
-        self.B = B
+        self.B = B.to(device)
         self.T = len(B)
         self.device = device
 
         # Forward diffusion variables
         self.a = 1.0 - self.B
-        self.a_bar = torch.cumprod(self.a, dim=0)
-        self.sqrt_a_bar = torch.sqrt(self.a_bar)  # Mean Coefficient
-        self.sqrt_one_minus_a_bar = torch.sqrt(1 - self.a_bar)  # St. Dev. Coefficient
+        self.a_bar = torch.cumprod(self.a, dim=0).to(device)
+        self.sqrt_a_bar = torch.sqrt(self.a_bar).to(device)  # Mean Coefficient
+        self.sqrt_one_minus_a_bar = torch.sqrt(1 - self.a_bar).to(device)  # St. Dev. Coefficient
 
         # Reverse diffusion variables
-        self.sqrt_a_inv = torch.sqrt(1 / self.a)
-        self.pred_noise_coeff = (1 - self.a) / torch.sqrt(1 - self.a_bar)
+        self.sqrt_a_inv = torch.sqrt(1 / self.a).to(device)
+        self.pred_noise_coeff = (1 - self.a) / torch.sqrt(1 - self.a_bar).to(device)
     
     def _get_coeff(self, tensor, t, x_shape):
         """
         Helper to extract coefficients and reshape them for broadcasting.
         Equivalent to 'get_index_from_list' in the course notebook.
         """
-        batch_size = t.shape[0]
-        out = tensor.gather(-1, t.long())
-        # Reshape to (batch_size, 1, 1, 1, ...) based on the number of image dimensions
-        return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device) # Dynamic Shape Handling
+        # Use standard indexing instead of gather
+        # This automatically handles 1D tensors correctly
+        out = tensor[t.long()]
+
+        # Reshape to (batch_size, 1, 1, 1) for broadcasting
+        # len(x_shape) - 1 handles the C, H, W dimensions dynamically
+        return out.view(-1, *((1,) * (len(x_shape) - 1)))
 
     def q(self, x_0, t):
         """
@@ -483,7 +486,23 @@ def sample_flowers(unet_model, ddpm, clip_model, text_list, device="cuda" if tor
 def sample_mnist(unet_model, ddpm, labels, device="cuda" if torch.cuda.is_available() else "cpu", 
                  results_dir=None, embeddings_storage=None, w_tests=None):
     """
-    Generate MNIST images conditioned on class labels (0-9).
+    Generate MNIST images conditioned on digit class labels (0-9) using a UNet + DDPM.
+
+    Args:
+        unet_model (nn.Module): Trained UNet noise predictor.
+        ddpm (DDPM): Diffusion process helper with sampling utilities.
+        labels (list[int] or None): Digit labels (0–9) to condition on.
+            If None, one instance of each digit is generated.
+        device (str or torch.device): Device for sampling.
+        results_dir (str, optional): If provided, saves generated images to disk.
+        embeddings_storage (object, optional): Optional hook object for collecting
+            UNet embeddings. If provided, a final forward pass at t=0 is triggered.
+        w_tests (list[float], optional): Guidance weights for classifier-free guidance.
+
+    Returns:
+        x_gen (Tensor): Final generated images, shape (B, C, H, W).
+        x_gen_store (Tensor): Intermediate samples across timesteps,
+            shape (T, B, C, H, W).
     """
     unet_model.eval()
     
@@ -497,10 +516,11 @@ def sample_mnist(unet_model, ddpm, labels, device="cuda" if torch.cuda.is_availa
     input_size = (unet_model.img_ch, unet_model.img_size, unet_model.img_size)
     
     with torch.no_grad():
-        # Use the existing classifier-free guidance sampler
+        # Use the existing CFG sampler
         # Note: sample_w handles the batch doubling and w weights
         x_gen, x_gen_store = sample_w(unet_model, ddpm, input_size, ddpm.T, c, device, w_tests)
         
+        # Optional embedding extraction via a clean forward pass at t=0
         if embeddings_storage is not None:
             # Handle cases where w_tests results in multiple images per label
             repeat_factor = x_gen.shape[0] // c.shape[0]
@@ -509,6 +529,7 @@ def sample_mnist(unet_model, ddpm, labels, device="cuda" if torch.cuda.is_availa
             c_mask = torch.ones(x_gen.shape[0], 1, device=device)
             _ = unet_model(x_gen, t_zero, c_repeated, c_mask)
 
+        # Save generated images if requested
         if results_dir:
             os.makedirs(results_dir, exist_ok=True)
             for i in range(x_gen.shape[0]):
@@ -520,17 +541,39 @@ def sample_mnist(unet_model, ddpm, labels, device="cuda" if torch.cuda.is_availa
 
 @torch.no_grad()
 def sample_unconditional(unet_model, ddpm, n_samples, img_ch, img_size, device, embeddings_storage=None):
+    """
+    Generate images unconditionally using a UNet + DDPM.
+
+    This function does not assume any dataset structure and works for MNIST
+    as well as other image domains.
+
+    Args:
+        unet_model (nn.Module): Trained UNet noise predictor.
+        ddpm (DDPM): Diffusion process helper.
+        n_samples (int): Number of images to generate.
+        img_ch (int): Number of image channels.
+        img_size (int): Spatial image size (H = W).
+        device (str or torch.device): Device for sampling.
+        embeddings_storage (object, optional): Optional hook for collecting
+            UNet embeddings via a final forward pass at t=0.
+
+    Returns:
+        x_t (Tensor): Final generated images, shape (B, C, H, W).
+    """
     unet_model.eval()
+    # Start from pure Gaussian noise
     x_t = torch.randn(n_samples, img_ch, img_size, img_size).to(device)
     # Create null conditioning
     c = torch.zeros(n_samples, unet_model.c_embed_dim).to(device)
     c_mask = torch.zeros(n_samples, 1).to(device)
     
+    # Reverse diffusion process
     for i in range(0, ddpm.T)[::-1]:
         t = torch.tensor([i]).to(device).repeat(n_samples)
         e_t = unet_model(x_t, t, c, c_mask)
         x_t = ddpm.reverse_q(x_t, t, e_t)
     
+    # Optional embedding extraction on clean images
     if embeddings_storage is not None:
         unet_model.eval()
         with torch.no_grad():
@@ -539,3 +582,64 @@ def sample_unconditional(unet_model, ddpm, n_samples, img_ch, img_size, device, 
             c_mask = torch.zeros(n_samples, 1).to(device)
             _ = unet_model(x_t, t_zero, c, c_mask) # Trigger Hook
     return x_t
+
+def predict_with_cascaded_idk(model, loader, device, threshold=0.7448, idk_index=10):
+    """
+    Run a classifier with an explicit IDK class and confidence-based rejection.
+
+    A sample is marked as IDK if:
+      (1) The model predicts the explicit IDK class, or
+      (2) The predicted digit has confidence below `threshold`.
+
+    Args:
+        model (nn.Module): Trained classifier with 11 outputs (0–9 + IDK).
+        loader (DataLoader): DataLoader providing input images (and optional labels).
+        device (str or torch.device): Device for inference.
+        threshold (float): Confidence threshold for soft rejection.
+        idk_index (int): Index of the explicit IDK class.
+
+    Returns:
+        results (list[dict]): Per-sample prediction metadata containing:
+            - raw_prediction
+            - final_prediction
+            - confidence
+            - pseudo_label (if available)
+            - rejection_type ("Hard", "Soft", or "None")
+    """
+    model.eval()
+    results = []
+    
+    with torch.no_grad():
+        for data, target in loader:
+            data = data.to(device)
+            output = model(data)
+            # Convert logits to probabilities across all 11 classes
+            probs = F.softmax(output, dim=1)
+            max_probs, preds = torch.max(probs, dim=1)
+            
+            for i in range(len(preds)):
+                conf = max_probs[i].item()
+                orig_label = preds[i].item()
+                
+                # Cascaded IDK logic: if the model explicitly chose the IDK class (10); if the model chose a digit (0-9) but is unsure (conf < threshold)
+                if orig_label == idk_index or conf < threshold:
+                    final_label = "IDK"
+                else:
+                    final_label = orig_label
+                
+                # Store extra info to see why it became idk 
+                results.append({
+                    "raw_prediction": orig_label if orig_label != idk_index else "IDK", # argmax over 11 classes
+                    "final_prediction": final_label, # after cascaded IDK logic
+                    "confidence": conf,
+                    "pseudo_label": (
+                        target[i].item()
+                        if target is not None and not isinstance(target, int)
+                        else target
+                    ),
+                    "rejection_type": (
+                        "Hard" if orig_label == idk_index 
+                        else ("Soft" if conf < threshold else "None")
+                    )
+                })
+    return results
