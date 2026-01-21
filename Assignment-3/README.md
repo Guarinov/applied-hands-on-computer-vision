@@ -215,8 +215,8 @@ The notebooks follow a logical experimental progression but can be executed inde
 
 As noted earlier:  
 
-- **Notebook `05_b_*`:** Can be run directly if the relevant checkpoints are available in the respective folder.  
-- **Notebook `05_bonus_*`:** Can also be run independently, provided the checkpoints from Assignment-1 are available. In this case, skip the cell titled *“Training...”* in Part 2 of the notebook.
+- Notebook `05_b_*`: Can be run directly if the relevant checkpoints are available in the respective folder.  
+- Notebook `05_bonus_*`: Can also be run independently, provided the checkpoints from Assignment-1 are available. In this case, skip the cell titled *“Training...”* in Part 2 of the notebook.
 ---
 
 ## ⚠️ Limitations
