@@ -164,7 +164,7 @@ Below is a unified summary of all experiments, including the Training of UNet-DD
 | Notebook | Experiment / Architecture      | Val Loss | Avg CLIP (%) | FID | Avg Classifier Conf (%) | Parameters | Sec / Epoch | GPU Mem (MB) |
 |--------------|------------------------------------|--------------|------------------|-------|-------|----------------|------------------|------------------|
 | 05_a         | Training UNet-DDPM CFG             | 0.0888       | 28.70            |   -   |   -   |   34,122,243   | 18.99            | 6310.46          |
-| 05_b         | Eval UNet-DDPM CFG\*               | 0.0888       | 27.30            | 87.5  |   -   |   34,122,243   | -                | -                |
+| 05_b         | Eval UNet-DDPM CFG\*               | 0.0888       | 27.30            | 87.50 |   -   |   34,122,243   | -                | -                |
 | 05_bonus     | Training Unconditional UNet-DDPM   | 0.0171       | -                |   -\* |   -   |   2,115,841    | 15.75            | 1109.53          |
 | 05_bonus     | Eval Unconditional UNet-DDPM       | 0.0171       | -                |   -   | 81.79 |   2,115,841    | -                | -                |
 
