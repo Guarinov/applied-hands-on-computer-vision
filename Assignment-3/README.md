@@ -83,11 +83,11 @@ Run: [ddpm_unet_training](https://wandb.ai/handsoncv-research/diffusion-model-as
 Description: UNet-DDPM model trained for text-prompt-to-image generation of flowers.
 
 2. **Evaluation of UNet-DDPM CFG on Cropped Flowers:** 
-Run: [handsoncv-maxpoolvsstride](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela)  
+Run: [dpm_unet_evaluation](https://wandb.ai/handsoncv-research/handsoncv-maxpoolvsstride?nw=nwuserguarinovanessaemanuela)  
 Description: Evaluates flower image generation using encoded CLIP prompts. Metrics include CLIP and FID scores, uniqueness, and representativeness, summarized in comparative tables on the project overview page: [diffusion-model-assessment-v2](https://wandb.ai/handsoncv-research/diffusion-model-assessment-v2?nw=nwuserguarinovanessaemanuela).
 
 3. **Training of Unconditional UNet-DDPM on MNIST Digits:** 
-Run: [handsoncv-cilp-assessment](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela)  
+Run: [dpm_unet_mnist_trainingt](https://wandb.ai/handsoncv-research/handsoncv-cilp-assessment?nw=nwuserguarinovanessaemanuela)  
 Description: UNet-DDPM model trained unconditionally to generate MNIST digits.
 
 ## 🃏 HuggingFace Datasets Repos
@@ -155,6 +155,7 @@ huggingface-cli upload your-username/TFflowers-diffusion-assessment ./data/hf_fl
 
 # If the local dataset is too large, we recommend trying again with upload-large-folder
 huggingface-cli upload-large-folder your-username/TFflowers-diffusion-assessment ./data/hf_flower_evaluation_report --repo-type dataset
+```
 
 ## 🧾 Summary of Results
 
