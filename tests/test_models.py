@@ -2,7 +2,8 @@ import pytest
 import torch
 import torch.nn as nn
 from handsoncv.models import (
-    Embedder, EmbedderStrided, LateFusionNet, IntermediateFusionNet, EfficientCILPModel, CrossModalProjector, LidarClassifier, RGB2LiDARClassifier
+    Embedder, EmbedderStrided, LateFusionNet, IntermediateFusionNet, EfficientCILPModel, 
+    CrossModalProjector, LidarClassifier, RGB2LiDARClassifier, UNet, MnistClassifier
 )
 
 class TestModels:
@@ -81,3 +82,117 @@ class TestModels:
         for param in model.rgb_encoder.features.parameters():
             assert param.grad is not None
             break
+        
+class TestUNet:
+    @pytest.fixture
+    def unet_params(self):
+        return {
+            "T": 1000,
+            "img_ch": 1,
+            "img_size": 32,
+            "down_chs": (32, 64, 128),
+            "t_embed_dim": 8,
+            "c_embed_dim": 128
+        }
+
+    def test_unet_forward_shape(self, unet_params):
+        """Verify UNet output shape matches input image shape."""
+        model = UNet(**unet_params)
+        B = 4
+        x = torch.randn(B, unet_params["img_ch"], unet_params["img_size"], unet_params["img_size"])
+        t = torch.randint(0, unet_params["T"], (B,))
+        c = torch.randn(B, unet_params["c_embed_dim"])
+        c_mask = torch.ones(B, unet_params["c_embed_dim"])
+
+        output = model(x, t, c, c_mask)
+        
+        assert output.shape == x.shape, f"Expected {x.shape}, got {output.shape}"
+
+    def test_unet_self_attention(self, unet_params):
+        """Verify UNet works with the self-attention bottleneck enabled."""
+        model = UNet(**unet_params, self_attention=True, num_heads=4)
+        B = 2
+        x = torch.randn(B, unet_params["img_ch"], unet_params["img_size"], unet_params["img_size"])
+        t = torch.randint(0, unet_params["T"], (B,))
+        c = torch.randn(B, unet_params["c_embed_dim"])
+        c_mask = torch.ones(B, unet_params["c_embed_dim"])
+
+        output = model(x, t, c, c_mask)
+        assert output.shape == x.shape
+
+    def test_unet_conditioning_mask(self, unet_params):
+        """Verify that the conditioning mask zeros out the context."""
+        model = UNet(**unet_params)
+        B = 2
+        x = torch.randn(B, unet_params["img_ch"], unet_params["img_size"], unet_params["img_size"])
+        t = torch.randint(0, unet_params["T"], (B,))
+        c = torch.randn(B, unet_params["c_embed_dim"])
+        
+        # Pass all zeros as mask
+        c_mask_zero = torch.zeros(B, unet_params["c_embed_dim"])
+        out_masked = model(x, t, c, c_mask_zero)
+        
+        # Pass different context but same zero mask
+        c_different = torch.randn(B, unet_params["c_embed_dim"])
+        out_different_context = model(x, t, c_different, c_mask_zero)
+        
+        # Outputs should be identical because context was masked to zero
+        assert torch.allclose(out_masked, out_different_context, atol=1e-5)
+
+    def test_unet_backprop(self, unet_params):
+        """Smoke test for gradients in the UNet."""
+        model = UNet(**unet_params)
+        x = torch.randn(2, 1, 32, 32)
+        t = torch.randint(0, 1000, (2,))
+        c = torch.randn(2, 128)
+        c_mask = torch.ones(2, 128)
+        
+        out = model(x, t, c, c_mask)
+        loss = out.mean()
+        loss.backward()
+        
+        # Check if gradients exist in the first downsampling layer
+        for param in model.down0.parameters():
+            assert param.grad is not None
+            break
+
+class TestMnistClassifier:
+    def test_classifier_shape(self):
+        """Verify LeNet-5 output classes."""
+        num_classes = 10
+        model = MnistClassifier(num_classes=num_classes)
+        # MNIST images are 1x28x28
+        x = torch.randn(8, 1, 28, 28)
+        output = model(x)
+        
+        assert output.shape == (8, num_classes)
+
+    def test_classifier_idk_class(self):
+        """Verify classifier works with an extra 'IDK' class."""
+        model = MnistClassifier(num_classes=11)
+        x = torch.randn(4, 1, 28, 28)
+        output = model(x)
+        assert output.shape == (4, 11)
+
+    def test_classifier_invalid_input(self):
+        """LeNet-5 is sensitive to input size due to fixed kernel sizes."""
+        model = MnistClassifier(num_classes=10)
+        # Passing 32x32 instead of 28x28 should usually trigger a shape error 
+        # at the View/Linear layer in this specific architecture
+        with pytest.raises(RuntimeError):
+            x = torch.randn(1, 1, 32, 32)
+            model(x)
+
+    def test_classifier_backprop(self):
+        """Check if gradients flow through the classifier."""
+        model = MnistClassifier(num_classes=10)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        x = torch.randn(4, 1, 28, 28)
+        labels = torch.randint(0, 10, (4,))
+        
+        output = model(x)
+        loss = torch.nn.functional.cross_entropy(output, labels)
+        loss.backward()
+        
+        # Check first conv layer
+        assert model.conv1.weight.grad is not None

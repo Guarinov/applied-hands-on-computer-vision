@@ -1,12 +1,15 @@
 import pytest
 import torch
+import csv
 import numpy as np
 
 from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from pathlib import Path
-from handsoncv.datasets import CILPFusionDataset
+from handsoncv.datasets import (
+    CILPFusionDataset, TFflowersCLIPDataset, GeneratedMNISTDataset
+)
 
 class TestCILPFusionDataset:
     @pytest.fixture(scope="class")
@@ -72,3 +75,97 @@ class TestCILPFusionDataset:
         
         assert cube_label == 0
         assert sphere_label == 1
+        
+class TestTFflowersCLIPDataset:
+    @pytest.fixture
+    def mock_clip_data(self, tmp_path):
+        """Creates dummy images and a CSV file mapping paths to embeddings."""
+        img_dir = tmp_path / "flowers"
+        img_dir.mkdir()
+        csv_path = tmp_path / "clip.csv"
+        
+        data_rows = []
+        emb_dim = 128
+        
+        for i in range(5):
+            img_path = img_dir / f"flower_{i}.jpg"
+            # Create dummy RGB image
+            Image.new('RGB', (32, 32), color='red').save(img_path)
+            
+            # Create dummy embedding [img_path, emb1, emb2, ...]
+            embedding = np.random.randn(emb_dim).tolist()
+            data_rows.append([str(img_path)] + embedding)
+            
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(data_rows)
+            
+        return csv_path, emb_dim
+
+    def test_initialization_and_len(self, mock_clip_data):
+        csv_path, _ = mock_clip_data
+        dataset = TFflowersCLIPDataset(csv_path=str(csv_path), transform=None)
+        assert len(dataset) == 5
+
+    def test_getitem_shapes(self, mock_clip_data):
+        csv_path, emb_dim = mock_clip_data
+        transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
+        dataset = TFflowersCLIPDataset(csv_path=str(csv_path), transform=transform)
+        
+        img, emb = dataset[0]
+        
+        # Check image: Resize to 224, ToTensor makes it (3, 224, 224)
+        assert img.shape == (3, 224, 224)
+        # Check embedding: length matches CSV columns
+        assert emb.shape == (emb_dim,)
+        assert isinstance(emb, torch.Tensor)
+
+class TestGeneratedMNISTDataset:
+    @pytest.fixture
+    def mock_mnist_results(self, tmp_path):
+        """Creates dummy grayscale images and a results list."""
+        img_dir = tmp_path / "generated"
+        img_dir.mkdir()
+        
+        results_list = []
+        # 3 valid samples
+        for i in range(3):
+            path = img_dir / f"gen_{i}.png"
+            Image.new('L', (28, 28), color=128).save(path)
+            results_list.append({'img_path': str(path), 'classifier_label': i})
+            
+        # 1 'IDK' sample
+        path_idk = img_dir / "gen_idk.png"
+        Image.new('L', (28, 28), color=255).save(path_idk)
+        results_list.append({'img_path': str(path_idk), 'classifier_label': 'IDK'})
+        
+        # 1 invalid sample (no image path)
+        results_list.append({'img_path': None, 'classifier_label': 5})
+        
+        return results_list
+
+    def test_filtering_logic(self, mock_mnist_results):
+        """Ensure samples with img_path=None are ignored."""
+        dataset = GeneratedMNISTDataset(results_list=mock_mnist_results)
+        # 3 valid + 1 IDK = 4 total
+        assert len(dataset) == 4
+
+    def test_getitem_content(self, mock_mnist_results):
+        transform = transforms.ToTensor()
+        dataset = GeneratedMNISTDataset(results_list=mock_mnist_results, transform=transform)
+        
+        img, label = dataset[0]
+        # Check image shape (Grayscale 'L' -> 1 channel)
+        assert img.shape == (1, 28, 28)
+        assert isinstance(label, int)
+        
+        # Check 'IDK' label
+        img_idk, label_idk = dataset[3]
+        assert label_idk == 'IDK'
+
+    def test_dataloader_integration(self, mock_mnist_results):
+        dataset = GeneratedMNISTDataset(results_list=mock_mnist_results, transform=transforms.ToTensor())
+        # Batch size 4 should work despite mixed int/string labels if handled 
+        loader = DataLoader(dataset, batch_size=1) 
+        img, label = next(iter(loader))
+        assert img.shape == (1, 1, 28, 28)

@@ -292,12 +292,6 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             for generating sample images at intervals with text-based conditioning.
         scheduler (torch.optim.lr_scheduler, optional): Learning rate scheduler.
     """
-    # Initialize EMA model as used in DDPM models (see https://github.com/hojonathanho/diffusion/blob/master/diffusion_tf/utils.py)
-    # ema_model = copy.deepcopy(model).to(device) # not to track gradients
-    # ema_model.eval()
-    # for param in ema_model.parameters():
-    #     param.requires_grad = False
-   
     # Dual Checkpointing stats
     best_val_loss = float('inf')
     best_clip_score = -1.0
@@ -368,14 +362,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) # Gradient clipping
             optimizer.step()
-            
-            # Update EMA model at every step
-            # Formula: shadow_params = shadow_params * decay + online_params * (1 - decay)
-            # with torch.no_grad():
-            #     current_decay = min(0.99, (1 + global_step) / (10 + global_step))
-            #     for online_param, shadow_param in zip(model.parameters(), model.parameters()):
-            #         shadow_param.data.mul_(current_decay).add_(online_param.data, alpha=1 - current_decay)
-            
+             
             train_loss += loss.item()
         avg_train_loss = train_loss / (step+1)
         
@@ -437,24 +424,27 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             
             if not is_unconditional:
                 img_idx = 0
+                num_conds = len(cond_list)
                 for w in w_tests:
-                    # for cond in cond_list:
-                    img = x_gen[img_idx]
-                    # Rescale [-1, 1] to [0, 1] for Wandb
-                    img = (img.clamp(-1, 1) + 1) / 2
-                    # Determine conditioning type
-                    cond_val = "unconditional" if is_unconditional else str(cond_list[i % len(cond_list)])
-                    # Add row to the table
-                    prediction_table.add_data(
-                        epoch, 
-                        cond_val, # e.g. "sunflower", "0" or "unconditional" 
-                        w, 
-                        wandb.Image(img.permute(1, 2, 0).cpu().numpy()) #, caption=f"{prompt} (w={w})")
-                    )
-                    img_idx += 1
+                    for j in range(num_conds): # Nested loop to handle weight x condition layout
+                        if img_idx >= len(x_gen): break
+                        # for cond in cond_list:
+                        img = x_gen[img_idx]
+                        # Rescale [-1, 1] to [0, 1] for Wandb
+                        img = (img.clamp(-1, 1) + 1) / 2
+                        # Determine conditioning type
+                        cond_val = "unconditional" if is_unconditional else str(cond_list[j])
+                        # Add row to the table
+                        prediction_table.add_data(
+                            epoch, 
+                            cond_val, # e.g. "sunflower", "0" or "unconditional" 
+                            w, 
+                            wandb.Image(img.permute(1, 2, 0).cpu().numpy()) #, caption=f"{prompt} (w={w})")
+                        )
+                        img_idx += 1
     
             # wandb.log({"clip_score": avg_clip_score})
-            print(f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}")
+            caption_str = f"Epoch {epoch}: Val Loss: {avg_val_loss:.4f}"
             if avg_clip_score is not None:
                 caption_str += f"| CLIP Score: {avg_clip_score:.4f})"
             
@@ -462,6 +452,7 @@ def train_diffusion(model, ddpm, train_loader, val_loader, optimizer, epochs, de
             wandb_media= wandb.Image(grid, caption=f"Epoch {epoch}")
             if avg_clip_score is not None:
                 caption_str += f" (CLIP: {avg_clip_score:.4f})"
+            print(caption_str)
                         
             # Set model onto .train() mode at the end of the validation predictions
             print(f"Saved and logged samples for epoch {epoch}")
