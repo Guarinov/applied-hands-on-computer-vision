@@ -114,7 +114,7 @@ Install the project in editable mode to get all dependencies listed in `pyprojec
 #### A Note on Assignment-1
 The MNIST Dataset Curation Lab (`Assignment-1`) was originally executed using a standalone virtual environment by installing the dependencies listed in `requirements.txt`,
 ```bash
-(Assignment-1) pip install -r requirement.txt
+(Assignment-1) pip install -r requirements.txt
 ```
 The assignment can also be re-run using the shared `handsoncv` environment, which provides all the required dependencies and ensures consistency across assignments.
 
